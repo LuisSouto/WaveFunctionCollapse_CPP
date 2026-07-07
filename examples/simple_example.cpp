@@ -1,6 +1,6 @@
-#include <iostream>
 #include <sprite_reader.h>
 #include <stb_image.h>
+#include <string>
 
 int main() {
   std::string filename = "../Sprites/simple_road.png";
