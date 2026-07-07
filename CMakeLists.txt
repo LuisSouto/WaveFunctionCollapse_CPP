@@ -29,7 +29,5 @@ target_include_directories(WaveFunctionCollapse
 if(WFC_BUILD_EXAMPLES)
     if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/examples/CMakeLists.txt")
         add_subdirectory(examples)
-    elseif(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/apps/CMakeLists.txt")
-        add_subdirectory(apps)
     endif()
 endif()
