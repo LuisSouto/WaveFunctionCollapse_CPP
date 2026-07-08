@@ -72,6 +72,7 @@ jobs:
                       classname = testcase.attrib.get('classname', '')
                       kind = 'failure' if testcase.find('failure') is not None else 'error'
                       print(f"- {classname}.{name} ({kind})")
+        PY
 
     - name: Upload test results
       if: always()
