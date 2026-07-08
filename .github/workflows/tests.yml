@@ -56,23 +56,10 @@ jobs:
           echo 'No test_results.xml found.'
           exit 0
         fi
-        python3 - <<'PY'
-          import xml.etree.ElementTree as ET
-          root = ET.parse('test_results.xml').getroot()
-          total = int(root.attrib.get('tests', '0'))
-          failed = int(root.attrib.get('failures', '0'))
-          errors = int(root.attrib.get('errors', '0'))
-          skipped = int(root.attrib.get('skipped', '0'))
-          print(f"Test summary: {total} total, {failed} failed, {errors} errors, {skipped} skipped")
-          if failed or errors:
-              print('Failed test cases:')
-              for testcase in root.findall('.//testcase'):
-                  if testcase.find('failure') is not None or testcase.find('error') is not None:
-                      name = testcase.attrib.get('name', 'unknown')
-                      classname = testcase.attrib.get('classname', '')
-                      kind = 'failure' if testcase.find('failure') is not None else 'error'
-                      print(f"- {classname}.{name} ({kind})")
-        PY
+        python3 -c 'import xml.etree.ElementTree as ET; root = ET.parse("test_results.xml").getroot(); total = int(root.attrib.get("tests", "0")); failed = int(root.attrib.get("failures", "0")); errors = int(root.attrib.get("errors", "0")); skipped = int(root.attrib.get("skipped", "0")); print(f"Test summary: {total} total, {failed} failed, {errors} errors, {skipped} skipped");
+        if failed or errors:
+          print("Failed test cases:");
+          [print(f"- {tc.attrib.get('classname','')}.{tc.attrib.get('name','unknown')} (failure)") if tc.find('failure') is not None else print(f"- {tc.attrib.get('classname','')}.{tc.attrib.get('name','unknown')} (error)") for tc in root.findall('.//testcase') if tc.find('failure') is not None or tc.find('error') is not None]'
 
     - name: Upload test results
       if: always()
