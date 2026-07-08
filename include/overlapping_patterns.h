@@ -13,7 +13,7 @@ class OverlappingPatterns {
 private:
   std::unordered_map<size_t, std::vector<u_int32_t>> pattern_hashes;
   std::unordered_map<size_t, int> hashes_to_ids;
-  void computePatternHashes(const SpriteHolder &sprite, int N);
+  void computePatterns(const SpriteHolder &sprite, int N);
 
 public:
   OverlappingPatterns(const SpriteHolder &sprite, int N);
