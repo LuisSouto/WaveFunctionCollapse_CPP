@@ -1,3 +1,6 @@
+#ifndef SPRITE_HOLDER_H
+#define SPRITE_HOLDER_H
+
 #include <cstdint>
 #include <vector>
 
@@ -26,4 +29,7 @@ public:
   int getChannels() const { return channels; }
   const std::vector<uint8_t> &getImagePixels() const { return image_pixels; }
   const std::vector<uint32_t> &getPixelHashes() const { return pixel_hashes; }
+  uint32_t getPixelHash(int x, int y) const;
 };
+
+#endif // SPRITE_HOLDER_H

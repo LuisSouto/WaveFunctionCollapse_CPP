@@ -1,5 +1,8 @@
 
 /*Looks for patterns in a sampel image using overlapping.*/
+#ifndef OVERLAPPING_PATTERNS_H
+#define OVERLAPPING_PATTERNS_H
+
 #include <cstddef>
 #include <sprite_holder.h>
 #include <sys/types.h>
@@ -22,3 +25,5 @@ public:
     return hashes_to_ids;
   }
 };
+
+#endif // OVERLAPPING_PATTERNS_H
