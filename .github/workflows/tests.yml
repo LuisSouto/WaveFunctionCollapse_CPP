@@ -48,6 +48,31 @@ jobs:
         cd build
         ./bin/wfc_tests --gtest_output=xml:test_results.xml
 
+    - name: Print test summary
+      if: always()
+      run: |
+        cd build
+        if [ ! -f test_results.xml ]; then
+          echo 'No test_results.xml found.'
+          exit 0
+        fi
+        python3 - <<'PY'
+          import xml.etree.ElementTree as ET
+          root = ET.parse('test_results.xml').getroot()
+          total = int(root.attrib.get('tests', '0'))
+          failed = int(root.attrib.get('failures', '0'))
+          errors = int(root.attrib.get('errors', '0'))
+          skipped = int(root.attrib.get('skipped', '0'))
+          print(f"Test summary: {total} total, {failed} failed, {errors} errors, {skipped} skipped")
+          if failed or errors:
+              print('Failed test cases:')
+              for testcase in root.findall('.//testcase'):
+                  if testcase.find('failure') is not None or testcase.find('error') is not None:
+                      name = testcase.attrib.get('name', 'unknown')
+                      classname = testcase.attrib.get('classname', '')
+                      kind = 'failure' if testcase.find('failure') is not None else 'error'
+                      print(f"- {classname}.{name} ({kind})")
+
     - name: Upload test results
       if: always()
       uses: actions/upload-artifact@v4
