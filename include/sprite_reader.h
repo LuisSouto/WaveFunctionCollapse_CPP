@@ -5,8 +5,7 @@
 
 class SpriteReader {
 public:
-  static SpriteHolder loadFromPng(const char *filename,
-                                  const int &desired_channels);
+  static SpriteHolder loadFromPng(const char *filename, int desired_channels);
 };
 
 #endif // SPRITE_READER_H

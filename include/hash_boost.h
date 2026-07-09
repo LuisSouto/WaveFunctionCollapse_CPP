@@ -1,15 +1,28 @@
-#ifndef HASH_BOOST_H
-#define HASH_BOOST_H
+#pragma once
 
+#include <cstdint>
 #include <hash_set>
 
-// This hash_combine implementation is based on the Boost Software License 1.0.
-// Copyright (c) 2005-2014 Daniel James
-// Distributed under the Boost Software License, Version 1.0.
-// (See license at http://www.boost.org/LICENSE_1_0.txt)
-template <class T> inline void hash_combine(std::size_t &seed, const T &v) {
-  std::hash<T> hasher;
-  seed ^= hasher(v) + 0x9e3779b9 + (seed << 6) + (seed >> 2);
-}
+/**
+ * A 64-bit hash combiner based on the Boost hash_combine structure,
+ * updated with 64-bit Golden Ratio constants and SplitMix64 bit-shuffling.
+ *
+ * Sources:
+ * - Boost Software License 1.0 (Structure)
+ * - SplitMix64 by Steele et al. (Bit mixing)
+ * - Golden Ratio fractional part (Entropy distribution)
+ */
+inline uint64_t hash_combine(uint64_t seed, uint32_t v) {
+  const uint64_t k = 0x9e3779b97f4a7c15;
+  uint64_t x = v;
 
-#endif // HASH_BOOST_H
+  // SplitMix64 mixing
+  x = (x ^ (x >> 30)) * 0xbf58476d1ce4e5b9;
+  x = (x ^ (x >> 27)) * 0x94d049bb133111eb;
+  x = x ^ (x >> 31);
+
+  // Boost-style combination
+  seed ^= x + k + (seed << 6) + (seed >> 2);
+
+  return seed;
+}

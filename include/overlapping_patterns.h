@@ -1,29 +1,28 @@
+#pragma once
 
-/*Looks for patterns in a sampel image using overlapping.*/
-#ifndef OVERLAPPING_PATTERNS_H
-#define OVERLAPPING_PATTERNS_H
-
+#include "wfc_typedefs.h"
+#include <adjacency_data.h>
 #include <cstddef>
 #include <sprite_holder.h>
 #include <sys/types.h>
 #include <unordered_map>
 #include <vector>
 
+/*Looks for patterns in a sample image using overlapping.*/
 class OverlappingPatterns {
 private:
-  std::unordered_map<size_t, std::vector<u_int32_t>> pattern_hashes;
-  std::unordered_map<size_t, int> hashes_to_ids;
-  void computePatterns(const SpriteHolder &sprite, int N);
+  int N;
+  size_t width;
+  size_t height;
+  std::vector<pattern_hash_t> grid_pattern_hashes;
+  std::unordered_map<pattern_hash_t, pattern_id_t> hashes_to_ids;
+  std::vector<pattern_id_t> grid_pattern_ids;
+  AdjacencyData adjacent_data;
+  void computePatternHashes(const SpriteHolder &sprite, int N);
+  void mapHashesToIds();
+  void computeGridIds();
+  void populateAdjacentData();
 
 public:
   OverlappingPatterns(const SpriteHolder &sprite, int N);
-  const std::unordered_map<size_t, std::vector<u_int32_t>> &
-  getPatternHashes() const {
-    return pattern_hashes;
-  }
-  const std::unordered_map<size_t, int> &getHashesToIds() const {
-    return hashes_to_ids;
-  }
 };
-
-#endif // OVERLAPPING_PATTERNS_H

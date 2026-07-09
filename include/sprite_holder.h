@@ -1,22 +1,25 @@
 #ifndef SPRITE_HOLDER_H
 #define SPRITE_HOLDER_H
 
+#include "wfc_typedefs.h"
+#include <cstddef>
 #include <cstdint>
+#include <stdexcept>
 #include <vector>
 
 class SpriteHolder {
 
 private:
-  int width;
-  int height;
+  size_t width;
+  size_t height;
   int channels;
-  int num_pixels;
+  size_t num_pixels;
   std::vector<uint8_t> image_pixels;
-  std::vector<uint32_t> pixel_hashes;
+  std::vector<pixel_hash_t> pixel_hashes;
   void computePixelHashes();
 
 public:
-  SpriteHolder(int width, int height, int channels,
+  SpriteHolder(size_t width, size_t height, int channels,
                std::vector<uint8_t> image_pixels)
       : width(width), height(height), channels(channels),
         image_pixels(std::move(image_pixels)) {
@@ -24,12 +27,19 @@ public:
     computePixelHashes();
   };
 
-  int getWidth() const { return width; }
-  int getHeight() const { return height; }
+  size_t getWidth() const { return width; }
+  size_t getHeight() const { return height; }
   int getChannels() const { return channels; }
   const std::vector<uint8_t> &getImagePixels() const { return image_pixels; }
-  const std::vector<uint32_t> &getPixelHashes() const { return pixel_hashes; }
-  uint32_t getPixelHash(int x, int y) const;
+  const std::vector<pixel_hash_t> &getPixelHashes() const {
+    return pixel_hashes;
+  }
+  pixel_hash_t getPixelHash(size_t x, size_t y) const {
+    if (x >= width || y >= height) {
+      throw std::out_of_range("Pixel coordinates out of bounds");
+    }
+    return pixel_hashes[y * width + x];
+  };
 };
 
 #endif // SPRITE_HOLDER_H

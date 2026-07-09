@@ -1,3 +1,4 @@
+#include "wfc_typedefs.h"
 #include <cstddef>
 #include <cstdint>
 #include <directions.h>
@@ -7,47 +8,78 @@
 #include <vector>
 
 OverlappingPatterns::OverlappingPatterns(const SpriteHolder &sprite, int N) {
-  computePatterns(sprite, N);
+  computePatternHashes(sprite, N);
+  mapHashesToIds();
+  computeGridIds();
+  populateAdjacentData();
+}
+
+void OverlappingPatterns::computePatternHashes(const SpriteHolder &sprite,
+                                               int N) {
+
+  this->N = N;
+  width = sprite.getWidth() - N + 1;
+  height = sprite.getHeight() - N + 1;
+  grid_pattern_hashes.resize(width * height);
+  for (size_t y = 0; y < height; y++) {
+    for (size_t x = 0; x < width; x++) {
+      pattern_hash_t pattern_hash = 0;
+      for (size_t dy = 0; dy < N; dy++) {
+        for (size_t dx = 0; dx < N; dx++) {
+          const pixel_hash_t pixelHash = sprite.getPixelHash(x + dx, y + dy);
+          pattern_hash = hash_combine(pattern_hash, pixelHash);
+        }
+      }
+      grid_pattern_hashes[y * width + x] = pattern_hash;
+    }
+  }
+}
+
+void OverlappingPatterns::mapHashesToIds() {
+  for (pattern_hash_t pattern_hash : grid_pattern_hashes) {
+    if (!hashes_to_ids.contains(pattern_hash)) {
+      hashes_to_ids[pattern_hash] =
+          static_cast<pattern_id_t>(hashes_to_ids.size());
+    }
+  }
+}
+
+void OverlappingPatterns::computeGridIds() {
+  grid_pattern_ids.reserve(grid_pattern_hashes.size());
+  for (pattern_hash_t pattern_hash : grid_pattern_hashes) {
+    grid_pattern_ids.push_back(hashes_to_ids[pattern_hash]);
+  }
 }
 
 // TODO: for now we do not use rotations, mirroring, wrapping, or any other
 // pattern augmentation
-void OverlappingPatterns::computePatterns(const SpriteHolder &sprite, int N) {
-  const size_t width = sprite.getWidth() - N + 1;
-  const size_t height = sprite.getHeight() - N + 1;
-  std::vector<size_t> stored_patterns(width * height);
-  std::unordered_map<int,
-                     std::unordered_map<uint8_t, std::unordered_map<int, int>>>
-      adjacent_patterns;
-  for (int y = 0; y < height; y++) {
-    for (int x = 0; x < width; x++) {
-      size_t hash = 0;
-      std::vector<uint32_t> pattern_pixel_hashes;
-      for (int dy = 0; dy < N; dy++) {
-        for (int dx = 0; dx < N; dx++) {
-          const uint32_t pixelHash = sprite.getPixelHash(x + dx, y + dy);
-          hash_combine(hash, pixelHash);
-          pattern_pixel_hashes.push_back(pixelHash);
-        }
-      }
-      stored_patterns[y * width + x] = hash;
-      if (pattern_hashes.find(hash) == pattern_hashes.end()) {
-        pattern_hashes[hash] = pattern_pixel_hashes;
-        hashes_to_ids[hash] = hashes_to_ids.size();
-      }
+void OverlappingPatterns::populateAdjacentData() {
+  // DISCOVERY PHASE: look for adjacent patterns in the grid and count their
+  // frequencies
+  size_t num_directions = 4; // Up, Down, Left, Right
+  std::vector<std::unordered_map<pattern_id_t, uint64_t>> discovered_maps(
+      hashes_to_ids.size() * num_directions);
+  for (size_t y = 0; y < height; y++) {
+    for (size_t x = 0; x < width; x++) {
       if (x > 0) {
-        size_t left_id = hashes_to_ids[stored_patterns[y * width + (x - 1)]];
-        adjacent_patterns[left_id][Directions::RIGHT][hash]++;
-        size_t right_id = hashes_to_ids[hash];
-        adjacent_patterns[right_id][Directions::LEFT][left_id]++;
+        pattern_id_t left_id = grid_pattern_ids[y * width + (x - 1)];
+        pattern_id_t right_id = grid_pattern_ids[y * width + x];
+        discovered_maps[left_id * num_directions + Directions::RIGHT]
+                       [right_id]++;
+        discovered_maps[right_id * num_directions + Directions::LEFT]
+                       [left_id]++;
       }
       if (y > 0) {
-        size_t top_id = hashes_to_ids[stored_patterns[(y - 1) * width + x]];
-        adjacent_patterns[top_id][Directions::DOWN][hash]++;
-        size_t bottom_id = hashes_to_ids[hash];
-        adjacent_patterns[bottom_id][Directions::UP][top_id]++;
+        size_t top_id = grid_pattern_ids[(y - 1) * width + x];
+        size_t bottom_id = grid_pattern_ids[y * width + x];
+        discovered_maps[top_id * num_directions + Directions::DOWN]
+                       [bottom_id]++;
+        discovered_maps[bottom_id * num_directions + Directions::UP][top_id]++;
       }
-      // TODO: for proper cache locality we need to flatten this 3D object
     }
   }
+
+  adjacent_data = AdjacencyData(discovered_maps, width, height);
+  // POPULATION PHASE: populate the AdjacencyData structure with the discovered
+  // adjacent patterns and their frequencies
 }
