@@ -1,5 +1,4 @@
-#ifndef SPRITE_HOLDER_H
-#define SPRITE_HOLDER_H
+#pragma once
 
 #include "wfc_typedefs.h"
 #include <cstddef>
@@ -41,5 +40,3 @@ public:
     return pixel_hashes[y * width + x];
   };
 };
-
-#endif // SPRITE_HOLDER_H

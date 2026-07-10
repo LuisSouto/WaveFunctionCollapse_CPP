@@ -6,6 +6,7 @@
 #include <overlapping_patterns.h>
 #include <unordered_map>
 #include <vector>
+#include <wfc_globals.h>
 
 OverlappingPatterns::OverlappingPatterns(const SpriteHolder &sprite, int N) {
   computePatternHashes(sprite, N);
@@ -45,6 +46,7 @@ void OverlappingPatterns::mapHashesToIds() {
 }
 
 void OverlappingPatterns::computeGridIds() {
+  grid_pattern_ids.clear();
   grid_pattern_ids.reserve(grid_pattern_hashes.size());
   for (pattern_hash_t pattern_hash : grid_pattern_hashes) {
     grid_pattern_ids.push_back(hashes_to_ids[pattern_hash]);
@@ -56,25 +58,25 @@ void OverlappingPatterns::computeGridIds() {
 void OverlappingPatterns::populateAdjacentData() {
   // DISCOVERY PHASE: look for adjacent patterns in the grid and count their
   // frequencies
-  size_t num_directions = 4; // Up, Down, Left, Right
   std::vector<std::unordered_map<pattern_id_t, uint64_t>> discovered_maps(
-      hashes_to_ids.size() * num_directions);
+      hashes_to_ids.size() * NUM_DIRECTIONS_2D);
   for (size_t y = 0; y < height; y++) {
     for (size_t x = 0; x < width; x++) {
       if (x > 0) {
         pattern_id_t left_id = grid_pattern_ids[y * width + (x - 1)];
         pattern_id_t right_id = grid_pattern_ids[y * width + x];
-        discovered_maps[left_id * num_directions + Directions::RIGHT]
+        discovered_maps[left_id * NUM_DIRECTIONS_2D + Directions::RIGHT]
                        [right_id]++;
-        discovered_maps[right_id * num_directions + Directions::LEFT]
+        discovered_maps[right_id * NUM_DIRECTIONS_2D + Directions::LEFT]
                        [left_id]++;
       }
       if (y > 0) {
         size_t top_id = grid_pattern_ids[(y - 1) * width + x];
         size_t bottom_id = grid_pattern_ids[y * width + x];
-        discovered_maps[top_id * num_directions + Directions::DOWN]
+        discovered_maps[top_id * NUM_DIRECTIONS_2D + Directions::DOWN]
                        [bottom_id]++;
-        discovered_maps[bottom_id * num_directions + Directions::UP][top_id]++;
+        discovered_maps[bottom_id * NUM_DIRECTIONS_2D + Directions::UP]
+                       [top_id]++;
       }
     }
   }
