@@ -1,3 +1,5 @@
+#pragma once
+
 #include <cstddef>
 
 // Up, Down, Left, Right

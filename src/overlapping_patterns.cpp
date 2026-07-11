@@ -6,7 +6,6 @@
 #include <overlapping_patterns.h>
 #include <unordered_map>
 #include <vector>
-#include <wfc_globals.h>
 
 OverlappingPatterns::OverlappingPatterns(const SpriteHolder &sprite, int N) {
   computePatternHashes(sprite, N);

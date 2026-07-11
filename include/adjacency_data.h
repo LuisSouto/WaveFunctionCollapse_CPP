@@ -2,8 +2,10 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <span>
 #include <unordered_map>
 #include <vector>
+#include <wfc_globals.h>
 #include <wfc_typedefs.h>
 
 class AdjacencyData {
@@ -27,5 +29,12 @@ public:
   size_t getNum64Blocks() const { return num_64_blocks; }
   uint64_t getPatternFrequency(pattern_id_t pattern_id) {
     return pattern_frequencies[pattern_id];
+  }
+  std::span<const uint64_t> getNeighbourIds(size_t cell_index,
+                                            uint8_t direction) const {
+
+    size_t offset =
+        (cell_index * NUM_DIRECTIONS_2D + direction) * num_64_blocks;
+    return {&neighbour_ids[offset], num_64_blocks};
   }
 };
