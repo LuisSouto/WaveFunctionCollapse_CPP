@@ -30,11 +30,11 @@ public:
   uint64_t getPatternFrequency(pattern_id_t pattern_id) {
     return pattern_frequencies[pattern_id];
   }
-  std::span<const uint64_t> getNeighbourIds(size_t cell_index,
-                                            uint8_t direction) const {
+  std::span<const uint64_t> getConstraintsAtDirection(pattern_id_t pattern_id,
+                                                      uint8_t direction) const {
 
     size_t offset =
-        (cell_index * NUM_DIRECTIONS_2D + direction) * num_64_blocks;
+        (pattern_id * NUM_DIRECTIONS_2D + direction) * num_64_blocks;
     return {&neighbour_ids[offset], num_64_blocks};
   }
 };
