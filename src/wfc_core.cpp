@@ -11,7 +11,8 @@
 #include <wfc_core.h>
 #include <wfc_globals.h>
 
-void WFC::run(size_t output_width, size_t output_height) {
+std::span<const pattern_id_t> WFC::generateCollapsedGrid(size_t output_width,
+                                                         size_t output_height) {
   total_cells = output_height * output_width;
   size_t num64_blocks = adjacent_data.getNum64Blocks();
 
@@ -22,6 +23,8 @@ void WFC::run(size_t output_width, size_t output_height) {
   temp_buffers.current_cell_wave.resize(total_cells);
   temp_buffers.next_cell_wave.resize(total_cells);
   temp_buffers.constraints_for_neighbour.resize(num64_blocks, 0);
+  temp_buffers.constraints_from_cell.resize(num64_blocks * NUM_DIRECTIONS_2D,
+                                            0);
   temp_buffers.current_version = 0;
   cell_pattern_ids.reserve(num64_blocks * 64);
   pattern_frequencies.reserve(num64_blocks * 64);
@@ -34,6 +37,8 @@ void WFC::run(size_t output_width, size_t output_height) {
     propagateConstraints(current_cell_index);
     current_cell_index = findCellToCollapse(current_cell_index);
   }
+
+  return {collapsed_patterns.data(), collapsed_patterns.size()};
 }
 
 void WFC::initializeGrid(size_t output_width, size_t output_height) {
@@ -110,26 +115,33 @@ void WFC::collapsePatternAtCell(size_t cell_index) {
 
   // Find the frequency count of each pattern to create a discrete
   // distribution
+  size_t total_counts = 0;
   pattern_frequencies.clear();
   for (pattern_id_t id : possible_patterns) {
     pattern_frequencies.push_back(adjacent_data.getPatternFrequency(id));
+    total_counts += pattern_frequencies.back();
   }
 
-  std::discrete_distribution<size_t> dist(pattern_frequencies.begin(),
-                                          pattern_frequencies.end());
+  std::uniform_int_distribution<size_t> dist(0, total_counts - 1);
+  size_t random_value = dist(rng);
+  for (size_t i = 0; i < pattern_frequencies.size(); i++) {
+    if (random_value < pattern_frequencies[i]) {
+      // Found the selected pattern
+      pattern_id_t selected_pattern_id = possible_patterns[i];
+      for (size_t j = 0; j < num_64_blocks; j++) {
+        grid[start_index + j] = 0;
+      }
 
-  // Sample a possible pattern and collapse the cell
-  pattern_id_t selected_pattern_id = possible_patterns[dist(rng)];
-  for (size_t i = 0; i < num_64_blocks; i++) {
-    grid[start_index + i] = 0;
+      size_t target_block = selected_pattern_id / 64;
+      int target_bit = selected_pattern_id % 64;
+      grid[start_index + target_block] = (1ULL << target_bit);
+      num_collapsed_cells++;
+      is_cell_collapsed[cell_index] = 1;
+      collapsed_patterns[cell_index] = selected_pattern_id;
+      return;
+    }
+    random_value -= pattern_frequencies[i];
   }
-
-  size_t target_block = selected_pattern_id / 64;
-  int target_bit = selected_pattern_id % 64;
-  grid[start_index + target_block] = (1ULL << target_bit);
-  num_collapsed_cells++;
-  is_cell_collapsed[cell_index] = 1;
-  collapsed_patterns[cell_index] = selected_pattern_id;
 }
 
 std::span<const pattern_id_t> WFC::readPatternsAtCell(size_t cell_index) {
@@ -174,16 +186,14 @@ void WFC::propagateConstraints(size_t cell_index) {
 }
 
 void WFC::extendPropagationRange() {
-  size_t wave_size = 0ULL;
   size_t num_64_blocks = adjacent_data.getNum64Blocks();
   temp_buffers.next_cell_wave.clear();
   for (size_t cell_index : temp_buffers.current_cell_wave) {
     // Restart version so it can be added back to the wave if needed
     temp_buffers.cell_update_versions[cell_index] = 0;
-
+    std::span<const uint64_t> cell_constraints =
+        getConstraintsFromCell(cell_index);
     // Check every direction
-    size_t x = cell_index % output_width;
-    size_t y = cell_index / output_width;
     for (size_t i = 0; i < NUM_DIRECTIONS_2D; i++) {
       size_t neighbour_index =
           neighbour_indexes[cell_index * NUM_DIRECTIONS_2D + i];
@@ -191,8 +201,9 @@ void WFC::extendPropagationRange() {
         continue; // Out of bounds
       }
 
-      bool has_changed =
-          updateConstraintsOfNeighbour(cell_index, neighbour_index, i);
+      bool has_changed = updateConstraintsOfNeighbour(
+          {&cell_constraints[i * num_64_blocks], num_64_blocks},
+          neighbour_index);
       if (has_changed && temp_buffers.cell_update_versions[neighbour_index] !=
                              temp_buffers.current_version) {
         temp_buffers.cell_update_versions[neighbour_index] =
@@ -203,19 +214,15 @@ void WFC::extendPropagationRange() {
   }
 }
 
-bool WFC::updateConstraintsOfNeighbour(size_t cell_index,
-                                       size_t neighbour_index,
-                                       uint8_t direction) {
+bool WFC::updateConstraintsOfNeighbour(
+    std::span<const uint64_t> cell_constraints, size_t neighbour_index) {
   size_t num_64_blocks = adjacent_data.getNum64Blocks();
-
-  std::span<const uint64_t> neighbour_constraints =
-      getConstraintsForNeighbour(cell_index, direction);
 
   bool has_changed = false;
   size_t start_index = neighbour_index * num_64_blocks;
   for (size_t i = 0; i < num_64_blocks; i++) {
     uint64_t old_block = grid[start_index + i];
-    uint64_t new_block = old_block & neighbour_constraints[i];
+    uint64_t new_block = old_block & cell_constraints[i];
     if (new_block != old_block) {
       grid[start_index + i] = new_block;
       has_changed = true;
@@ -225,20 +232,16 @@ bool WFC::updateConstraintsOfNeighbour(size_t cell_index,
   return has_changed;
 }
 
-std::span<const uint64_t>
-WFC::getConstraintsForNeighbour(size_t cell_index,
-                                uint8_t neighbout_direction) {
-
+std::span<const uint64_t> WFC::getConstraintsFromCell(size_t cell_index) {
   if (is_cell_collapsed[cell_index]) {
     pattern_id_t collapsed_pattern_id = collapsed_patterns[cell_index];
-    return adjacent_data.getConstraintsAtDirection(collapsed_pattern_id,
-                                                   neighbout_direction);
+    return adjacent_data.getConstraintsForPattern(collapsed_pattern_id);
   }
 
   size_t num_64_blocks = adjacent_data.getNum64Blocks();
   size_t start_index = cell_index * num_64_blocks;
-  std::fill(temp_buffers.constraints_for_neighbour.begin(),
-            temp_buffers.constraints_for_neighbour.end(), 0ULL);
+  std::fill(temp_buffers.constraints_from_cell.begin(),
+            temp_buffers.constraints_from_cell.end(), 0ULL);
 
   // Find all the significant bits in the 64-bit blocks
   for (size_t i = 0; i < num_64_blocks; i++) {
@@ -249,17 +252,16 @@ WFC::getConstraintsForNeighbour(size_t cell_index,
     pattern_id_t block_base_id = i * 64; // Accumulated id for each block
     while (block != 0) {
       pattern_id_t pattern_id = block_base_id + std::countr_zero(block);
-      std::span<const uint64_t> neighbour_ids =
-          adjacent_data.getConstraintsAtDirection(pattern_id,
-                                                  neighbout_direction);
+      std::span<const uint64_t> constraints_from_pattern =
+          adjacent_data.getConstraintsForPattern(pattern_id);
 
-      for (size_t i = 0; i < num_64_blocks; i++) {
-        temp_buffers.constraints_for_neighbour[i] |= neighbour_ids[i];
+      for (size_t j = 0; j < NUM_DIRECTIONS_2D * num_64_blocks; j++) {
+        temp_buffers.constraints_from_cell[j] |= constraints_from_pattern[j];
       }
       block &= (block - 1); // Clear the least significant bit set
     }
   }
 
-  return {temp_buffers.constraints_for_neighbour.data(),
-          temp_buffers.constraints_for_neighbour.size()};
+  return {temp_buffers.constraints_from_cell.data(),
+          temp_buffers.constraints_from_cell.size()};
 }

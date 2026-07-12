@@ -3,6 +3,7 @@
 #include "wfc_typedefs.h"
 #include <adjacency_data.h>
 #include <cstddef>
+#include <cstdint>
 #include <sprite_holder.h>
 #include <sys/types.h>
 #include <unordered_map>
@@ -17,10 +18,12 @@ private:
   std::vector<pattern_hash_t> grid_pattern_hashes;
   std::unordered_map<pattern_hash_t, pattern_id_t> hashes_to_ids;
   std::vector<pattern_id_t> grid_pattern_ids;
+  std::vector<uint64_t> pattern_frequencies;
   AdjacencyData adjacent_data;
   void computePatternHashes(const SpriteHolder &sprite, int N);
   void mapHashesToIds();
   void computeGridIds();
+  void countPatterns();
   void populateAdjacentData();
 
 public:

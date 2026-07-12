@@ -12,29 +12,31 @@ class AdjacencyData {
 private:
   size_t num_patterns;
   size_t num_64_blocks;
+  size_t num_blocks;
   std::vector<uint64_t> neighbour_ids;
   std::vector<uint64_t> pattern_frequencies;
-  // For each pattern and direction, store the offsets of its adjacent patterns
-  // in the grid
-  std::vector<size_t> neighbour_offsets;
-  // For each pattern and direction, store the count of its adjacent patterns
-  std::vector<size_t> neighbour_counts;
+  std::vector<size_t> pattern_offsets;
 
 public:
   AdjacencyData() = default;
-  AdjacencyData(
-      std::vector<std::unordered_map<pattern_id_t, uint64_t>> &discovered_maps,
-      size_t width, size_t height);
+  AdjacencyData(std::vector<std::unordered_map<pattern_id_t, uint64_t>>
+                    &adjacent_patterns,
+                std::vector<uint64_t> pattern_frequencies);
   size_t getNumPatterns() const { return num_patterns; }
   size_t getNum64Blocks() const { return num_64_blocks; }
   uint64_t getPatternFrequency(pattern_id_t pattern_id) {
     return pattern_frequencies[pattern_id];
   }
-  std::span<const uint64_t> getConstraintsAtDirection(pattern_id_t pattern_id,
-                                                      uint8_t direction) const {
+  std::span<const uint64_t>
+  getConstraintsForPatternAtDirection(pattern_id_t pattern_id,
+                                      uint8_t direction) const {
 
     size_t offset =
         (pattern_id * NUM_DIRECTIONS_2D + direction) * num_64_blocks;
     return {&neighbour_ids[offset], num_64_blocks};
+  }
+  std::span<const uint64_t>
+  getConstraintsForPattern(pattern_id_t pattern_id) const {
+    return {&neighbour_ids[pattern_offsets[pattern_id]], num_blocks};
   }
 };

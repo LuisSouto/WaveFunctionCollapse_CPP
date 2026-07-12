@@ -4,6 +4,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <random>
+#include <span>
 #include <vector>
 #include <wfc_temp_buffers.h>
 #include <wfc_typedefs.h>
@@ -32,10 +33,9 @@ private:
   void collapsePatternAtCell(size_t cell_index);
   void propagateConstraints(size_t cell_index);
   void extendPropagationRange();
-  bool updateConstraintsOfNeighbour(size_t cell_index, size_t neighbour_index,
-                                    uint8_t direction);
-  std::span<const uint64_t> getConstraintsForNeighbour(size_t cell_index,
-                                                       uint8_t direction);
+  bool updateConstraintsOfNeighbour(std::span<const uint64_t> cell_constraints,
+                                    size_t neighbour_index);
+  std::span<const uint64_t> getConstraintsFromCell(size_t cell_index);
 
 public:
   WFC(const AdjacencyData &adjacent_data) : adjacent_data(adjacent_data) {
@@ -45,5 +45,6 @@ public:
   WFC(const AdjacencyData &adjacent_data, uint64_t seed)
       : adjacent_data(adjacent_data), rng(seed) {};
 
-  void run(size_t output_width, size_t output_height);
+  std::span<const pattern_id_t> generateCollapsedGrid(size_t output_width,
+                                                      size_t output_height);
 };
