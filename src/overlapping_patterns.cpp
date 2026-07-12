@@ -1,6 +1,3 @@
-#include "wfc_typedefs.h"
-#include <cstddef>
-#include <cstdint>
 #include <directions.h>
 #include <hash_boost.h>
 #include <overlapping_patterns.h>
@@ -85,20 +82,19 @@ void OverlappingPatterns::populateAdjacentData() {
         adjacent_patterns[right_id * NUM_DIRECTIONS_2D + Directions::LEFT]
                          [left_id]++;
       }
-      if (y > 0) {
-        size_t top_id = grid_pattern_ids[(y - 1) * width + x];
-        size_t bottom_id = grid_pattern_ids[y * width + x];
-        adjacent_patterns[top_id * NUM_DIRECTIONS_2D + Directions::DOWN]
-                         [bottom_id]++;
-        adjacent_patterns[bottom_id * NUM_DIRECTIONS_2D + Directions::UP]
+      if (y < height - 1) {
+        // Image reads from top to bottom, so the pattern below is at y+1
+        size_t bottom_id = grid_pattern_ids[(y + 1) * width + x];
+        size_t top_id = grid_pattern_ids[y * width + x];
+        adjacent_patterns[bottom_id * NUM_DIRECTIONS_2D + Directions::DOWN]
                          [top_id]++;
+        adjacent_patterns[top_id * NUM_DIRECTIONS_2D + Directions::UP]
+                         [bottom_id]++;
       }
     }
   }
 
   adjacent_data = AdjacencyData(adjacent_patterns, pattern_frequencies);
-  // POPULATION PHASE: populate the AdjacencyData structure with the discovered
-  // adjacent patterns and their frequencies
 }
 
 void OverlappingPatterns::mapIdsToPixels() {

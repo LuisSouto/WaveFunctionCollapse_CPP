@@ -1,6 +1,5 @@
 #pragma once
 
-#include "wfc_typedefs.h"
 #include <adjacency_data.h>
 #include <cstddef>
 #include <cstdint>
@@ -8,11 +7,12 @@
 #include <sys/types.h>
 #include <unordered_map>
 #include <vector>
+#include <wfc_typedefs.h>
 
 /*Looks for patterns in a sample image using overlapping.*/
 class OverlappingPatterns {
 private:
-  int N;
+  size_t N;
   size_t width;
   size_t height;
   std::vector<pattern_hash_t> grid_pattern_hashes;
@@ -41,8 +41,8 @@ public:
     for (size_t y = 0; y < height; y++) {
       for (size_t x = 0; x < width; x++) {
         pattern_id_t pattern_id = pattern_ids[y * width + x];
-        const std::vector<uint8_t> &pixel_data =
-            hashes_to_pixels.at(grid_pattern_hashes[pattern_id]);
+        std::span<const uint8_t> pixel_data = {
+            &ids_to_pixels[pattern_id * 3 * N * N], 3 * N * N};
         for (size_t dy = 0; dy < N; dy++) {
           for (size_t dx = 0; dx < N; dx++) {
             size_t pixel_index = (dy * N + dx) * 3;
