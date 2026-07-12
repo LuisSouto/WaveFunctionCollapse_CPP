@@ -4,6 +4,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <directions.h>
+#include <iostream>
 #include <random>
 #include <span>
 #include <stdexcept>
@@ -138,6 +139,8 @@ void WFC::collapsePatternAtCell(size_t cell_index) {
       num_collapsed_cells++;
       is_cell_collapsed[cell_index] = 1;
       collapsed_patterns[cell_index] = selected_pattern_id;
+      std::cout << "Collapsed cell " << cell_index << " to pattern "
+                << selected_pattern_id << std::endl;
       return;
     }
     random_value -= pattern_frequencies[i];
@@ -167,6 +170,8 @@ std::span<const pattern_id_t> WFC::readPatternsAtCell(size_t cell_index) {
     }
   }
 
+  std::cout << "Cell " << cell_index << " has " << cell_pattern_ids.size()
+            << " possible patterns." << std::endl;
   if (cell_pattern_ids.size() == 0) {
     throw std::runtime_error("Contradiction: no possible patterns found!");
   }
@@ -216,8 +221,12 @@ void WFC::extendPropagationRange() {
 
 bool WFC::updateConstraintsOfNeighbour(
     std::span<const uint64_t> cell_constraints, size_t neighbour_index) {
-  size_t num_64_blocks = adjacent_data.getNum64Blocks();
 
+  if (is_cell_collapsed[neighbour_index]) {
+    return false; // No need to update a collapsed cell
+  }
+
+  size_t num_64_blocks = adjacent_data.getNum64Blocks();
   bool has_changed = false;
   size_t start_index = neighbour_index * num_64_blocks;
   for (size_t i = 0; i < num_64_blocks; i++) {

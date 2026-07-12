@@ -13,6 +13,7 @@ OverlappingPatterns::OverlappingPatterns(const SpriteHolder &sprite, int N) {
   computeGridIds();
   countPatterns();
   populateAdjacentData();
+  mapIdsToPixels();
 }
 
 void OverlappingPatterns::computePatternHashes(const SpriteHolder &sprite,
@@ -21,17 +22,23 @@ void OverlappingPatterns::computePatternHashes(const SpriteHolder &sprite,
   this->N = N;
   width = sprite.getWidth() - N + 1;
   height = sprite.getHeight() - N + 1;
+  grid_pattern_hashes.clear();
   grid_pattern_hashes.resize(width * height);
+  std::vector<uint8_t> pixel_pattern(N * N * 3); // Assuming 3 channels (RGB)
   for (size_t y = 0; y < height; y++) {
     for (size_t x = 0; x < width; x++) {
       pattern_hash_t pattern_hash = 0;
+      pixel_pattern.clear();
       for (size_t dy = 0; dy < N; dy++) {
         for (size_t dx = 0; dx < N; dx++) {
           const pixel_hash_t pixelHash = sprite.getPixelHash(x + dx, y + dy);
           pattern_hash = hash_combine(pattern_hash, pixelHash);
+          const uint8_t *pixel_data = sprite.getPixelData(x + dx, y + dy);
+          pixel_pattern.insert(pixel_pattern.end(), pixel_data, pixel_data + 3);
         }
       }
       grid_pattern_hashes[y * width + x] = pattern_hash;
+      hashes_to_pixels[pattern_hash] = pixel_pattern;
     }
   }
 }
@@ -92,4 +99,14 @@ void OverlappingPatterns::populateAdjacentData() {
   adjacent_data = AdjacencyData(adjacent_patterns, pattern_frequencies);
   // POPULATION PHASE: populate the AdjacencyData structure with the discovered
   // adjacent patterns and their frequencies
+}
+
+void OverlappingPatterns::mapIdsToPixels() {
+  ids_to_pixels.clear();
+  ids_to_pixels.resize(hashes_to_ids.size() * N * N * 3); // Assuming 3 channels
+  for (const auto &[pattern_hash, pattern_id] : hashes_to_ids) {
+    const std::vector<uint8_t> &pixel_pattern = hashes_to_pixels[pattern_hash];
+    std::copy(pixel_pattern.begin(), pixel_pattern.end(),
+              ids_to_pixels.begin() + pattern_id * N * N * 3);
+  }
 }

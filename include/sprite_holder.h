@@ -39,4 +39,11 @@ public:
     }
     return pixel_hashes[y * width + x];
   };
+
+  const uint8_t *getPixelData(size_t x, size_t y) const {
+    if (x >= width || y >= height) {
+      throw std::out_of_range("Pixel coordinates out of bounds");
+    }
+    return &image_pixels[(y * width + x) * channels];
+  };
 };
