@@ -1,4 +1,3 @@
-#include "wfc_typedefs.h"
 #include <algorithm>
 #include <bit>
 #include <cstddef>
@@ -7,10 +6,10 @@
 #include <iostream>
 #include <random>
 #include <span>
-#include <stdexcept>
 #include <vector>
 #include <wfc_core.h>
 #include <wfc_globals.h>
+#include <wfc_typedefs.h>
 
 std::span<const pattern_id_t> WFC::generateCollapsedGrid(size_t output_width,
                                                          size_t output_height) {
@@ -30,12 +29,47 @@ std::span<const pattern_id_t> WFC::generateCollapsedGrid(size_t output_width,
   cell_pattern_ids.reserve(num64_blocks * 64);
   pattern_frequencies.reserve(num64_blocks * 64);
 
+  if (!settings.enable_backtracking) {
+    settings.block_size_x = output_width;
+    settings.block_size_y = output_height;
+  }
+
+  current_block_x = 0;
+  current_block_y = 0;
+  backtracking_block.resize(
+      settings.block_size_x * settings.block_size_y * num64_blocks, 0);
+  is_outside_block.resize(total_cells, 1);
+  num_collapsed_cells = 0;
+  updateBackTrackingBlock();
+
   // Collapse cells until the whole grid is collapsed
   size_t current_cell_index = 0;
-  num_collapsed_cells = 0;
+  size_t block_index_counter = 0;
+  uint8_t no_contradictions;
   while (num_collapsed_cells < total_cells) {
     collapsePatternAtCell(current_cell_index);
-    propagateConstraints(current_cell_index);
+    std::cout << "Collapsed " << num_collapsed_cells << " out of "
+              << total_cells << " cells." << std::endl;
+    no_contradictions = propagateConstraints(current_cell_index, false);
+    if (!no_contradictions) {
+      current_cell_index = restartBlock();
+      continue;
+    }
+    block_index_counter++;
+    if (block_index_counter >= settings.block_size_x * settings.block_size_y) {
+      block_index_counter = 0;
+      if (num_collapsed_cells >= total_cells) {
+        break; // All cells are collapsed
+      }
+      no_contradictions = propagateConstraints(current_cell_index, true);
+      if (no_contradictions) {
+        current_cell_index = moveToNextBlock();
+        propagateConstraints(current_cell_index - 1, false);
+      } else {
+        current_cell_index = restartBlock();
+      }
+      continue;
+    }
     current_cell_index = findCellToCollapse(current_cell_index);
   }
 
@@ -91,15 +125,109 @@ void WFC::bakeNeighbourIndexes() {
   }
 }
 
-size_t WFC::findCellToCollapse(size_t previous_cell_index) {
-  size_t previous_x = previous_cell_index % output_width;
+void WFC::updateBackTrackingBlock() {
+  uint32_t block_size_x = settings.block_size_x;
+  uint32_t block_size_y = settings.block_size_y;
+  size_t num_64_blocks = adjacent_data.getNum64Blocks();
+  size_t current_block_index = current_block_y * output_width + current_block_x;
+  for (size_t y = 0; y < block_size_y; y++) {
+    for (size_t x = 0; x < block_size_x; x++) {
+      size_t start_index_grid =
+          (current_block_index + y * output_width + x) * num_64_blocks;
+      size_t start_index_block = (y * block_size_x + x) * num_64_blocks;
+      for (size_t k = 0; k < num_64_blocks; k++) {
+        backtracking_block[start_index_block + k] = grid[start_index_grid + k];
+      }
+      is_outside_block[current_block_index + y * output_width + x] = false;
+    }
+  }
+  snapshot_num_collapsed_cells = num_collapsed_cells;
+}
 
-  if (previous_x + 1 < output_width) {
+size_t WFC::restartBlock() {
+  size_t num_64_blocks = adjacent_data.getNum64Blocks();
+  size_t block_size_x = settings.block_size_x;
+  size_t block_size_y = settings.block_size_y;
+  size_t current_block_index = current_block_y * output_width + current_block_x;
+  for (size_t y = 0; y < block_size_y; y++) {
+    for (size_t x = 0; x < block_size_x; x++) {
+      size_t start_index_grid =
+          (current_block_index + y * output_width + x) * num_64_blocks;
+      size_t start_index_block = (y * block_size_x + x) * num_64_blocks;
+      for (size_t k = 0; k < num_64_blocks; k++) {
+        grid[start_index_grid + k] = backtracking_block[start_index_block + k];
+      }
+      is_cell_collapsed[current_block_index + y * output_width + x] = false;
+    }
+  }
+  num_collapsed_cells = snapshot_num_collapsed_cells;
+  return current_block_y * output_width + current_block_x;
+}
+
+size_t WFC::moveToNextBlock() {
+  size_t block_size_x = settings.block_size_x;
+  size_t block_size_y = settings.block_size_y;
+  size_t num_64_blocks = adjacent_data.getNum64Blocks();
+  // For convenience we copy the collapsed pixel into the backtracking block
+  size_t current_block_index = current_block_y * output_width + current_block_x;
+  for (size_t i = 0; i < num_64_blocks; i++) {
+    backtracking_block[i] = grid[current_block_index * num_64_blocks + i];
+  }
+
+  // Now we copy back the block into the grid since we only keep the top left
+  // corner of the block (or the leftmost column if we reached the bottom of the
+  // image)
+  size_t min_x = (current_block_y + block_size_y >= output_height) ? 1 : 0;
+  size_t min_y = (current_block_x + block_size_x >= output_width) ? 1 : 0;
+  for (size_t y = min_y; y < block_size_y; y++) {
+    for (size_t x = min_x; x < block_size_x; x++) {
+      size_t start_index_grid =
+          (current_block_index + y * output_width + x) * num_64_blocks;
+      size_t start_index_block = (y * block_size_x + x) * num_64_blocks;
+      for (size_t k = 0; k < num_64_blocks; k++) {
+        grid[start_index_grid + k] = backtracking_block[start_index_block + k];
+      }
+      is_cell_collapsed[current_block_index + y * output_width + x] = false;
+      is_outside_block[current_block_index + y * output_width + x] = true;
+    }
+  }
+  is_cell_collapsed[current_block_index] = true;
+
+  // Update number of collapsed cells
+  if (current_block_y + block_size_y >= output_height) {
+    snapshot_num_collapsed_cells += block_size_y;
+    num_collapsed_cells = snapshot_num_collapsed_cells;
+  } else if (current_block_x + block_size_x >= output_width) {
+    snapshot_num_collapsed_cells += block_size_x;
+    num_collapsed_cells = snapshot_num_collapsed_cells;
+  } else {
+    snapshot_num_collapsed_cells++;
+    num_collapsed_cells = snapshot_num_collapsed_cells;
+  }
+
+  // Now we update the block index
+  if (current_block_x + block_size_x < output_width) {
+    current_block_x++;
+  } else {
+    current_block_x = 0;
+    current_block_y++;
+  }
+
+  // And finally we copy this part of the grid into the backtracking block
+  updateBackTrackingBlock();
+
+  return current_block_y * output_width + current_block_x;
+}
+
+size_t WFC::findCellToCollapse(size_t previous_cell_index) {
+  size_t previous_x = previous_cell_index % output_width - current_block_x;
+
+  if (previous_x + 1 < settings.block_size_x) {
     return previous_cell_index + 1;
   } else {
     size_t next_y = (previous_cell_index / output_width) + 1;
     if (next_y < output_height) {
-      return next_y * output_width;
+      return next_y * output_width + current_block_x;
     } else {
       // Reached the end of the grid
       return SIZE_MAX;
@@ -170,27 +298,27 @@ std::span<const pattern_id_t> WFC::readPatternsAtCell(size_t cell_index) {
     }
   }
 
-  std::cout << "Cell " << cell_index << " has " << cell_pattern_ids.size()
-            << " possible patterns." << std::endl;
-  if (cell_pattern_ids.size() == 0) {
-    throw std::runtime_error("Contradiction: no possible patterns found!");
-  }
-
   return {cell_pattern_ids.data(), cell_pattern_ids.size()};
 }
 
-void WFC::propagateConstraints(size_t cell_index) {
+uint8_t WFC::propagateConstraints(size_t cell_index,
+                                  uint8_t is_global_propagation) {
   temp_buffers.current_version++;
   temp_buffers.current_cell_wave.clear();
   temp_buffers.current_cell_wave.push_back(cell_index);
   temp_buffers.cell_update_versions[cell_index] = temp_buffers.current_version;
+  uint8_t no_contradictions = true;
   while (!temp_buffers.current_cell_wave.empty()) {
-    extendPropagationRange();
+    no_contradictions = extendPropagationRange(is_global_propagation);
+    if (!no_contradictions) {
+      break; // Stop propagation if a contradiction is found
+    }
     temp_buffers.current_cell_wave.swap(temp_buffers.next_cell_wave);
   }
+  return no_contradictions;
 }
 
-void WFC::extendPropagationRange() {
+uint8_t WFC::extendPropagationRange(uint8_t is_global_propagation) {
   size_t num_64_blocks = adjacent_data.getNum64Blocks();
   temp_buffers.next_cell_wave.clear();
   for (size_t cell_index : temp_buffers.current_cell_wave) {
@@ -205,10 +333,16 @@ void WFC::extendPropagationRange() {
       if (neighbour_index == SIZE_MAX) {
         continue; // Out of bounds
       }
+      if (!is_global_propagation && is_outside_block[neighbour_index]) {
+        continue; // Skip propagation outside the block if not global
+      }
 
-      bool has_changed = updateConstraintsOfNeighbour(
+      auto [has_changed, no_contradictions] = updateConstraintsOfNeighbour(
           {&cell_constraints[i * num_64_blocks], num_64_blocks},
           neighbour_index);
+      if (!no_contradictions) {
+        return false; // Stop propagation if a contradiction is found
+      }
       if (has_changed && temp_buffers.cell_update_versions[neighbour_index] !=
                              temp_buffers.current_version) {
         temp_buffers.cell_update_versions[neighbour_index] =
@@ -217,28 +351,34 @@ void WFC::extendPropagationRange() {
       }
     }
   }
+  return true;
 }
 
-bool WFC::updateConstraintsOfNeighbour(
-    std::span<const uint64_t> cell_constraints, size_t neighbour_index) {
+std::pair<uint8_t, uint8_t>
+WFC::updateConstraintsOfNeighbour(std::span<const uint64_t> cell_constraints,
+                                  size_t neighbour_index) {
 
   if (is_cell_collapsed[neighbour_index]) {
-    return false; // No need to update a collapsed cell
+    return {false, true}; // No need to update a collapsed cell
   }
 
   size_t num_64_blocks = adjacent_data.getNum64Blocks();
-  bool has_changed = false;
+  uint8_t has_changed = false;
+  uint8_t no_contradictions = false;
   size_t start_index = neighbour_index * num_64_blocks;
   for (size_t i = 0; i < num_64_blocks; i++) {
     uint64_t old_block = grid[start_index + i];
     uint64_t new_block = old_block & cell_constraints[i];
+    if (new_block > 0) {
+      no_contradictions = true;
+    }
     if (new_block != old_block) {
       grid[start_index + i] = new_block;
       has_changed = true;
     }
   }
 
-  return has_changed;
+  return {has_changed, no_contradictions};
 }
 
 std::span<const uint64_t> WFC::getConstraintsFromCell(size_t cell_index) {

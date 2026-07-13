@@ -7,14 +7,14 @@
 #include <wfc_core.h>
 
 int main() {
-  std::string filename = "../Sprites/simple_road.png";
+  std::string filename = "../Sprites/Dungeon.png";
   SpriteHolder sprite = SpriteReader::loadFromPng(filename.c_str(), STBI_rgb);
   size_t N = 2;
   OverlappingPatterns overlapping_patterns(sprite, N);
-  uint64_t seed = 300;
+  uint64_t seed = 3;
   WFC wfc(overlapping_patterns.getAdjacencyData(), seed);
   size_t output_width = 128;
-  size_t output_height = 128;
+  size_t output_height = 64;
   std::span<const pattern_id_t> collapsed_grid =
       wfc.generateCollapsedGrid(output_width - N + 1, output_height - N + 1);
   std::vector<uint8_t> output_pixels = overlapping_patterns.getIdsToPixels(
@@ -25,5 +25,12 @@ int main() {
   stbi_write_png("../Results/output.png", output_width, output_height, channels,
                  output_pixels.data(), output_width * channels);
 
+  // TODO: backtracing
+  // TODO: boundary conditions
+  // TODO: entropy selection
+  // TODO: if a cell has tons of possible patterns, just assume it does not
+  // restrict its neighbours
+  // TODO: if neighbour_constraints is all 1's avoid intersection
+  // TODO: enable periodic boundary conditions
   return 0;
 }
