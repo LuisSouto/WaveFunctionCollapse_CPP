@@ -1,6 +1,7 @@
 #include <directions.h>
 #include <hash_boost.h>
 #include <overlapping_patterns.h>
+#include <sprite_holder.h>
 #include <unordered_map>
 #include <vector>
 
@@ -8,34 +9,31 @@ OverlappingPatterns::OverlappingPatterns(const SpriteHolder &sprite, int N) {
   computePatternHashes(sprite, N);
   mapHashesToIds();
   computeGridIds();
+  mapIdsToPixels(sprite);
   countPatterns();
   populateAdjacentData();
-  mapIdsToPixels();
 }
 
 void OverlappingPatterns::computePatternHashes(const SpriteHolder &sprite,
-                                               int N) {
+                                               size_t N) {
 
   this->N = N;
   width = sprite.getWidth() - N + 1;
   height = sprite.getHeight() - N + 1;
+  total_pixels = width * height;
+  channels = sprite.getChannels();
   grid_pattern_hashes.clear();
   grid_pattern_hashes.resize(width * height);
-  std::vector<uint8_t> pixel_pattern(N * N * 3); // Assuming 3 channels (RGB)
   for (size_t y = 0; y < height; y++) {
     for (size_t x = 0; x < width; x++) {
       pattern_hash_t pattern_hash = 0;
-      pixel_pattern.clear();
       for (size_t dy = 0; dy < N; dy++) {
         for (size_t dx = 0; dx < N; dx++) {
           const pixel_hash_t pixelHash = sprite.getPixelHash(x + dx, y + dy);
           pattern_hash = hash_combine(pattern_hash, pixelHash);
-          const uint8_t *pixel_data = sprite.getPixelData(x + dx, y + dy);
-          pixel_pattern.insert(pixel_pattern.end(), pixel_data, pixel_data + 3);
         }
       }
       grid_pattern_hashes[y * width + x] = pattern_hash;
-      hashes_to_pixels[pattern_hash] = pixel_pattern;
     }
   }
 }
@@ -54,6 +52,27 @@ void OverlappingPatterns::computeGridIds() {
   grid_pattern_ids.reserve(grid_pattern_hashes.size());
   for (pattern_hash_t pattern_hash : grid_pattern_hashes) {
     grid_pattern_ids.push_back(hashes_to_ids[pattern_hash]);
+  }
+}
+
+void OverlappingPatterns::mapIdsToPixels(const SpriteHolder &sprite) {
+  ids_to_pixels.clear();
+  ids_to_pixels.resize(hashes_to_ids.size() * N * N * channels);
+  size_t pattern_id = 0;
+  for (size_t y = 0; y < height; y++) {
+    for (size_t x = 0; x < width; x++) {
+      pattern_hash_t pattern_hash = grid_pattern_hashes[y * width + x];
+      if (hashes_to_ids[pattern_hash] == pattern_id) {
+        size_t start_index = pattern_id * N * N * channels;
+        for (size_t dy = 0; dy < N; dy++) {
+          const uint8_t *pixel_row = sprite.getPixelPointer(x, y + dy);
+          uint8_t *pixel_destination =
+              &ids_to_pixels[start_index + dy * N * channels];
+          std::copy(pixel_row, pixel_row + N * channels, pixel_destination);
+        }
+        pattern_id++;
+      }
+    }
   }
 }
 
@@ -97,12 +116,23 @@ void OverlappingPatterns::populateAdjacentData() {
   adjacent_data = AdjacencyData(adjacent_patterns, pattern_frequencies);
 }
 
-void OverlappingPatterns::mapIdsToPixels() {
-  ids_to_pixels.clear();
-  ids_to_pixels.resize(hashes_to_ids.size() * N * N * 3); // Assuming 3 channels
-  for (const auto &[pattern_hash, pattern_id] : hashes_to_ids) {
-    const std::vector<uint8_t> &pixel_pattern = hashes_to_pixels[pattern_hash];
-    std::copy(pixel_pattern.begin(), pixel_pattern.end(),
-              ids_to_pixels.begin() + pattern_id * N * N * 3);
+std::vector<uint8_t>
+OverlappingPatterns::getIdsToPixels(std::span<const pattern_id_t> pattern_ids,
+                                    size_t width, size_t height) const {
+  std::vector<uint8_t> output_pixels;
+  size_t output_width = width + N - 1;
+  size_t output_height = height + N - 1;
+  output_pixels.resize(output_width * output_height * channels);
+  for (size_t y = 0; y < height; y++) {
+    for (size_t x = 0; x < width; x++) {
+      pattern_id_t pattern_id = pattern_ids[y * width + x];
+      const uint8_t *pixel_data = &ids_to_pixels[pattern_id * channels * N * N];
+      for (size_t dy = 0; dy < N; dy++) {
+        size_t pixel_index = dy * N * channels;
+        std::memcpy(&output_pixels[((y + dy) * output_width + x) * channels],
+                    &pixel_data[pixel_index], N * channels);
+      }
+    }
   }
+  return output_pixels;
 }
