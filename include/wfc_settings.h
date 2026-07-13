@@ -2,7 +2,7 @@
 
 #include <cstdint>
 
-enum BoundaryCondition { NONE, PERIODIC, NON_PERIODIC };
+enum BoundaryCondition { NONE, PERIODIC, EDGES };
 
 struct WFCSettings {
   uint8_t dimensions = 2;

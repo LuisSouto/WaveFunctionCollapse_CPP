@@ -48,8 +48,6 @@ std::span<const pattern_id_t> WFC::generateCollapsedGrid(size_t output_width,
   uint8_t no_contradictions;
   while (num_collapsed_cells < total_cells) {
     collapsePatternAtCell(current_cell_index);
-    std::cout << "Collapsed " << num_collapsed_cells << " out of "
-              << total_cells << " cells." << std::endl;
     no_contradictions = propagateConstraints(current_cell_index, false);
     if (!no_contradictions) {
       current_cell_index = restartBlock();
@@ -267,8 +265,6 @@ void WFC::collapsePatternAtCell(size_t cell_index) {
       num_collapsed_cells++;
       is_cell_collapsed[cell_index] = 1;
       collapsed_patterns[cell_index] = selected_pattern_id;
-      std::cout << "Collapsed cell " << cell_index << " to pattern "
-                << selected_pattern_id << std::endl;
       return;
     }
     random_value -= pattern_frequencies[i];
@@ -335,6 +331,14 @@ uint8_t WFC::extendPropagationRange(uint8_t is_global_propagation) {
       }
       if (!is_global_propagation && is_outside_block[neighbour_index]) {
         continue; // Skip propagation outside the block if not global
+      }
+
+      if (i + 1 < NUM_DIRECTIONS_2D) {
+        size_t next_idx =
+            neighbour_indexes[cell_index * NUM_DIRECTIONS_2D + i + 1];
+        if (next_idx != SIZE_MAX) {
+          __builtin_prefetch(&grid[next_idx * num_64_blocks], 1, 3);
+        }
       }
 
       auto [has_changed, no_contradictions] = updateConstraintsOfNeighbour(

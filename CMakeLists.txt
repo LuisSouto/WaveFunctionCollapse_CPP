@@ -5,7 +5,6 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON) # needed for clangd
-# set(CMAKE_CXX_FLAGS "-O3")
 
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin")
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin")
@@ -27,6 +26,18 @@ target_include_directories(WaveFunctionCollapse
     PUBLIC
         ${CMAKE_CURRENT_SOURCE_DIR}/include
 )
+
+target_compile_options(WaveFunctionCollapse PRIVATE
+    -O3
+    -g
+    -march=native
+    -fno-omit-frame-pointer
+    -Wall
+    -Wextra
+    -Wpedantic
+)
+
+target_link_options(WaveFunctionCollapse PRIVATE "-Wl,-z,now")
 
 if(WFC_BUILD_EXAMPLES)
     if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/examples/CMakeLists.txt")
