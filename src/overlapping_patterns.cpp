@@ -1,3 +1,4 @@
+#include "wfc_globals.h"
 #include <directions.h>
 #include <hash_boost.h>
 #include <overlapping_patterns.h>
@@ -11,6 +12,7 @@ OverlappingPatterns::OverlappingPatterns(const SpriteHolder &sprite, int N) {
   computeGridIds();
   mapIdsToPixels(sprite);
   countPatterns();
+  findBoundaryPatterns();
   populateAdjacentData();
 }
 
@@ -59,18 +61,18 @@ void OverlappingPatterns::mapIdsToPixels(const SpriteHolder &sprite) {
   ids_to_pixels.clear();
   ids_to_pixels.resize(hashes_to_ids.size() * N * N * channels);
   size_t pattern_id = 0;
-  for (size_t y = 0; y < height; y++) {
-    for (size_t x = 0; x < width; x++) {
+  for (size_t y = 0; y < height; ++y) {
+    for (size_t x = 0; x < width; ++x) {
       pattern_hash_t pattern_hash = grid_pattern_hashes[y * width + x];
       if (hashes_to_ids[pattern_hash] == pattern_id) {
         size_t start_index = pattern_id * N * N * channels;
-        for (size_t dy = 0; dy < N; dy++) {
+        for (size_t dy = 0; dy < N; ++dy) {
           const uint8_t *pixel_row = sprite.getPixelPointer(x, y + dy);
           uint8_t *pixel_destination =
               &ids_to_pixels[start_index + dy * N * channels];
           std::copy(pixel_row, pixel_row + N * channels, pixel_destination);
         }
-        pattern_id++;
+        ++pattern_id;
       }
     }
   }
@@ -80,7 +82,7 @@ void OverlappingPatterns::countPatterns() {
   pattern_frequencies.clear();
   pattern_frequencies.resize(hashes_to_ids.size(), 0);
   for (pattern_id_t pattern_id : grid_pattern_ids) {
-    pattern_frequencies[pattern_id]++;
+    ++pattern_frequencies[pattern_id];
   }
 }
 
@@ -91,29 +93,66 @@ void OverlappingPatterns::populateAdjacentData() {
   // frequencies
   std::vector<std::unordered_map<pattern_id_t, uint64_t>> adjacent_patterns(
       hashes_to_ids.size() * NUM_DIRECTIONS_2D);
-  for (size_t y = 0; y < height; y++) {
-    for (size_t x = 0; x < width; x++) {
+  for (size_t y = 0; y < height; ++y) {
+    for (size_t x = 0; x < width; ++x) {
       if (x > 0) {
         pattern_id_t left_id = grid_pattern_ids[y * width + (x - 1)];
         pattern_id_t right_id = grid_pattern_ids[y * width + x];
-        adjacent_patterns[left_id * NUM_DIRECTIONS_2D + Directions::RIGHT]
-                         [right_id]++;
-        adjacent_patterns[right_id * NUM_DIRECTIONS_2D + Directions::LEFT]
-                         [left_id]++;
+        ++adjacent_patterns[left_id * NUM_DIRECTIONS_2D + Directions::RIGHT]
+                           [right_id];
+        ++adjacent_patterns[right_id * NUM_DIRECTIONS_2D + Directions::LEFT]
+                           [left_id];
       }
       if (y < height - 1) {
         // Image reads from top to bottom, so the pattern below is at y+1
         size_t bottom_id = grid_pattern_ids[(y + 1) * width + x];
         size_t top_id = grid_pattern_ids[y * width + x];
-        adjacent_patterns[bottom_id * NUM_DIRECTIONS_2D + Directions::DOWN]
-                         [top_id]++;
-        adjacent_patterns[top_id * NUM_DIRECTIONS_2D + Directions::UP]
-                         [bottom_id]++;
+        ++adjacent_patterns[bottom_id * NUM_DIRECTIONS_2D + Directions::DOWN]
+                           [top_id];
+        ++adjacent_patterns[top_id * NUM_DIRECTIONS_2D + Directions::UP]
+                           [bottom_id];
       }
     }
   }
 
-  adjacent_data = AdjacencyData(adjacent_patterns, pattern_frequencies);
+  adjacent_data = AdjacencyData(adjacent_patterns, pattern_frequencies,
+                                patterns_at_boundaries);
+}
+
+void OverlappingPatterns::findBoundaryPatterns() {
+  size_t num64_blocks = (hashes_to_ids.size() + 63) / 64;
+  patterns_at_boundaries.clear();
+  patterns_at_boundaries.resize(NUM_DIRECTIONS_2D * num64_blocks, 0);
+
+  // TOP and BOTTOM ROWS
+  std::vector<size_t> y_indexes = {0, height - 1};
+  std::vector<size_t> start_indexes = {Directions::UP * num64_blocks,
+                                       Directions::DOWN * num64_blocks};
+  for (size_t i = 0; i < 2; ++i) {
+    size_t y = y_indexes[i];
+    size_t start_index = start_indexes[i];
+    for (size_t x = 0; x < width; x++) {
+      pattern_id_t pattern_id = grid_pattern_ids[y * width + x];
+      size_t block_index = pattern_id / 64;
+      size_t bit_index = pattern_id % 64;
+      patterns_at_boundaries[start_index + block_index] |= (1ULL << bit_index);
+    }
+  }
+
+  // LEFT and RIGHT COLUMNs
+  std::vector<size_t> x_indexes = {0, width - 1};
+  start_indexes = {Directions::LEFT * num64_blocks,
+                   Directions::RIGHT * num64_blocks};
+  for (size_t i = 0; i < 2; ++i) {
+    size_t x = x_indexes[i];
+    size_t start_index = start_indexes[i];
+    for (size_t y = 1; y < height - 1; ++y) {
+      pattern_id_t pattern_id = grid_pattern_ids[y * width + x];
+      size_t block_index = pattern_id / 64;
+      size_t bit_index = pattern_id % 64;
+      patterns_at_boundaries[start_index + block_index] |= (1ULL << bit_index);
+    }
+  }
 }
 
 std::vector<uint8_t>

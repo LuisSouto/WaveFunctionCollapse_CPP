@@ -1,4 +1,3 @@
-#include <iostream>
 #include <overlapping_patterns.h>
 #include <sprite_reader.h>
 #include <stb_image.h>
@@ -7,16 +6,22 @@
 #include <wfc_core.h>
 
 int main() {
-  std::string filename = "../Sprites/Dungeon.png";
+  std::string filename = "../Sprites/black_and_white.png";
   SpriteHolder sprite = SpriteReader::loadFromPng(filename.c_str(), STBI_rgb);
   size_t N = 2;
   OverlappingPatterns overlapping_patterns(sprite, N);
-  uint64_t seed = 3;
+  uint64_t seed = 123;
   WFC wfc(overlapping_patterns.getAdjacencyData(), seed);
-  size_t output_width = 128;
-  size_t output_height = 64;
+  size_t output_width = 512;
+  size_t output_height = 512;
   std::span<const pattern_id_t> collapsed_grid =
       wfc.generateCollapsedGrid(output_width - N + 1, output_height - N + 1);
+
+  // run 1000 times
+  for (size_t i = 0; i < 1000; i++) {
+    collapsed_grid =
+        wfc.generateCollapsedGrid(output_width - N + 1, output_height - N + 1);
+  }
   std::vector<uint8_t> output_pixels = overlapping_patterns.getIdsToPixels(
       collapsed_grid, output_width - N + 1, output_height - N + 1);
 

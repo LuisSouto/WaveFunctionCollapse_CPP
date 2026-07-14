@@ -41,11 +41,17 @@ std::span<const pattern_id_t> WFC::generateCollapsedGrid(size_t output_width,
   is_outside_block.resize(total_cells, 1);
   num_collapsed_cells = 0;
   updateBackTrackingBlock();
-
-  // Collapse cells until the whole grid is collapsed
   size_t current_cell_index = 0;
+
+  // Boundary conditions
+  // if (settings.boundary_condition == BoundaryCondition::FIXED) {
+  //   applyBoundaryConditions();
+  //   propagateConstraints(current_cell_index, true);
+  // }
+
   size_t block_index_counter = 0;
   uint8_t no_contradictions;
+  // Collapse cells until the whole grid is collapsed
   while (num_collapsed_cells < total_cells) {
     collapsePatternAtCell(current_cell_index);
     no_contradictions = propagateConstraints(current_cell_index, false);
@@ -119,6 +125,41 @@ void WFC::bakeNeighbourIndexes() {
       }
       size_t neighbour_index = cell_index + dy * output_width + dx;
       neighbour_indexes[cell_index * NUM_DIRECTIONS_2D + i] = neighbour_index;
+    }
+  }
+}
+
+// Use only the patterns that are at the boundaries of the input image to
+// restrict the patterns that can be placed at the boundaries of the output
+// image
+void WFC::applyBoundaryConditions() {
+  size_t num64_blocks = adjacent_data.getNum64Blocks();
+
+  // TOP and BOTTOM ROWS
+  std::vector<size_t> y_indexes = {0, output_height - 1};
+  std::vector<size_t> directions = {Directions::UP, Directions::DOWN};
+  for (size_t i = 0; i < 2; ++i) {
+    size_t y = y_indexes[i];
+    std::span<const uint64_t> boundary_patterns =
+        adjacent_data.getPatternsAtBoundaries(directions[i]);
+    for (size_t x = 0; x < output_width; x++) {
+      for (size_t j = 0; j < num64_blocks; j++) {
+        grid[(y * output_width + x) * num64_blocks + j] &= boundary_patterns[j];
+      }
+    }
+  }
+
+  // LEFT and RIGHT COLUMNs
+  std::vector<size_t> x_indexes = {0, output_width - 1};
+  directions = {Directions::LEFT, Directions::RIGHT};
+  for (size_t i = 0; i < 2; ++i) {
+    size_t x = x_indexes[i];
+    std::span<const uint64_t> boundary_patterns =
+        adjacent_data.getPatternsAtBoundaries(directions[i]);
+    for (size_t y = 1; y < output_height - 1; ++y) {
+      for (size_t j = 0; j < num64_blocks; ++j) {
+        grid[(y * output_width + x) * num64_blocks + j] &= boundary_patterns[j];
+      }
     }
   }
 }
@@ -219,21 +260,33 @@ size_t WFC::moveToNextBlock() {
 
 size_t WFC::findCellToCollapse(size_t previous_cell_index) {
   size_t previous_x = previous_cell_index % output_width - current_block_x;
+  uint8_t is_collapsed = true;
+  size_t next_cell_index;
 
-  if (previous_x + 1 < settings.block_size_x) {
-    return previous_cell_index + 1;
-  } else {
-    size_t next_y = (previous_cell_index / output_width) + 1;
-    if (next_y < output_height) {
-      return next_y * output_width + current_block_x;
+  while (is_collapsed) {
+    if (previous_x + 1 < settings.block_size_x) {
+      next_cell_index = previous_cell_index + 1;
     } else {
-      // Reached the end of the grid
-      return SIZE_MAX;
+      size_t next_y = (previous_cell_index / output_width) + 1;
+      if (next_y < output_height) {
+        next_cell_index = next_y * output_width + current_block_x;
+      } else {
+        // Reached the end of the grid
+        return SIZE_MAX;
+      }
     }
+    is_collapsed = is_cell_collapsed[next_cell_index];
+    previous_cell_index = next_cell_index;
+    previous_x = next_cell_index % output_width - current_block_x;
   }
+  return next_cell_index;
 }
 
 void WFC::collapsePatternAtCell(size_t cell_index) {
+  if (is_cell_collapsed[cell_index]) {
+    return; // Cell is already collapsed
+  }
+
   size_t num_64_blocks = adjacent_data.getNum64Blocks();
   size_t start_index = cell_index * num_64_blocks;
 
@@ -370,15 +423,32 @@ WFC::updateConstraintsOfNeighbour(std::span<const uint64_t> cell_constraints,
   uint8_t has_changed = false;
   uint8_t no_contradictions = false;
   size_t start_index = neighbour_index * num_64_blocks;
-  for (size_t i = 0; i < num_64_blocks; i++) {
+  size_t total_constraints = 0;
+  for (size_t i = 0; i < num_64_blocks; ++i) {
     uint64_t old_block = grid[start_index + i];
     uint64_t new_block = old_block & cell_constraints[i];
+    total_constraints += std::popcount(new_block);
     if (new_block > 0) {
       no_contradictions = true;
     }
     if (new_block != old_block) {
       grid[start_index + i] = new_block;
       has_changed = true;
+    }
+  }
+
+  // If the neighbour cell has only one possible pattern left, we can collapse
+  // it
+  if (total_constraints == 1 && no_contradictions) {
+    ++num_collapsed_cells;
+    is_cell_collapsed[neighbour_index] = true;
+    for (size_t i = 0; i < num_64_blocks; ++i) {
+      uint64_t block = grid[start_index + i];
+      if (block != 0) {
+        size_t bit_index = std::countr_zero(block);
+        collapsed_patterns[neighbour_index] = i * 64 + bit_index;
+        break;
+      }
     }
   }
 

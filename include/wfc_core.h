@@ -34,6 +34,7 @@ private:
   WFCSettings settings;
   std::mt19937_64 rng; // Random number generator for selecting patterns
   void initializeGrid(size_t output_width, size_t output_height);
+  void applyBoundaryConditions();
   void bakeNeighbourIndexes();
   size_t findCellToCollapse(size_t previous_cell_index);
   std::span<const pattern_id_t> readPatternsAtCell(size_t cell_index);

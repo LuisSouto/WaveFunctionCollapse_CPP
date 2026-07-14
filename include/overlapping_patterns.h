@@ -23,13 +23,15 @@ private:
   std::vector<pattern_id_t> grid_pattern_ids;
   std::vector<uint8_t> ids_to_pixels;
   std::vector<uint64_t> pattern_frequencies;
+  std::vector<uint64_t> patterns_at_boundaries;
   AdjacencyData adjacent_data;
   void computePatternHashes(const SpriteHolder &sprite, size_t N);
   void mapHashesToIds();
   void computeGridIds();
+  void findBoundaryPatterns();
+  void mapIdsToPixels(const SpriteHolder &sprite);
   void countPatterns();
   void populateAdjacentData();
-  void mapIdsToPixels(const SpriteHolder &sprite);
 
 public:
   OverlappingPatterns(const SpriteHolder &sprite, int N);

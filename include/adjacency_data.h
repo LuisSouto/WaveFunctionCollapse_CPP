@@ -15,13 +15,15 @@ private:
   size_t num_blocks;
   std::vector<uint64_t> neighbour_ids;
   std::vector<uint64_t> pattern_frequencies;
+  std::vector<uint64_t> patterns_at_boundaries;
   std::vector<size_t> pattern_offsets;
 
 public:
   AdjacencyData() = default;
   AdjacencyData(std::vector<std::unordered_map<pattern_id_t, uint64_t>>
                     &adjacent_patterns,
-                std::vector<uint64_t> pattern_frequencies);
+                std::vector<uint64_t> pattern_frequencies,
+                std::vector<uint64_t> patterns_at_boundaries);
   size_t getNumPatterns() const { return num_patterns; }
   size_t getNum64Blocks() const { return num_64_blocks; }
   uint64_t getPatternFrequency(pattern_id_t pattern_id) {
@@ -38,5 +40,9 @@ public:
   std::span<const uint64_t>
   getConstraintsForPattern(pattern_id_t pattern_id) const {
     return {&neighbour_ids[pattern_offsets[pattern_id]], num_blocks};
+  }
+
+  std::span<const uint64_t> getPatternsAtBoundaries(size_t direction) const {
+    return {&patterns_at_boundaries[direction * num_64_blocks], num_64_blocks};
   }
 };
