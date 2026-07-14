@@ -10,12 +10,11 @@ int main() {
   SpriteHolder sprite = SpriteReader::loadFromPng(filename.c_str(), STBI_rgb);
   size_t N = 2;
   OverlappingPatterns overlapping_patterns(sprite, N);
-  uint64_t seed = 123;
+  uint64_t seed = 12;
   WFC wfc(overlapping_patterns.getAdjacencyData(), seed);
   size_t output_width = 512;
   size_t output_height = 512;
-  std::span<const pattern_id_t> collapsed_grid =
-      wfc.generateCollapsedGrid(output_width - N + 1, output_height - N + 1);
+  std::span<const pattern_id_t> collapsed_grid;
 
   // run 1000 times
   for (size_t i = 0; i < 1000; i++) {
