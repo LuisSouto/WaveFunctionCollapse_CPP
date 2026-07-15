@@ -3,6 +3,7 @@
 #include <adjacency_data.h>
 #include <cstddef>
 #include <cstdint>
+#include <entropy.h>
 #include <random>
 #include <span>
 #include <vector>
@@ -25,18 +26,24 @@ private:
   std::vector<uint64_t> grid;
   std::vector<size_t> neighbour_indexes;
   std::vector<uint64_t> backtracking_block;
+  std::vector<double> backtracking_entropy_weight_times_log_weights;
+  std::vector<double> backtracking_entropy_weight_sums;
   std::vector<uint8_t> is_outside_block;
   std::vector<uint8_t> is_cell_collapsed;
   std::vector<pattern_id_t> collapsed_patterns;
   std::vector<pattern_id_t> cell_pattern_ids;
   std::vector<uint64_t> pattern_frequencies;
   WFCTempBuffers temp_buffers;
+  EntropyData entropy_data;
   WFCSettings settings;
-  std::mt19937_64 rng; // Random number generator for selecting patterns
+  std::mt19937_64 rng;
   void initializeGrid(size_t output_width, size_t output_height);
+  void initializeEntropyData();
   void applyBoundaryConditions();
   void bakeNeighbourIndexes();
-  size_t findCellToCollapse(size_t previous_cell_index);
+  size_t chooseNextCellEntropy();
+  size_t chooseNextCellScanline(size_t previous_cell_index);
+
   std::span<const pattern_id_t> readPatternsAtCell(size_t cell_index);
   void collapsePatternAtCell(size_t cell_index);
   uint8_t propagateConstraints(size_t cell_index,
@@ -49,6 +56,7 @@ private:
   std::span<const uint64_t> getConstraintsFromCell(size_t cell_index);
   size_t restartBlock();
   size_t moveToNextBlock();
+  size_t restartLastCell();
 
 public:
   WFC(const AdjacencyData &adjacent_data) : adjacent_data(adjacent_data) {

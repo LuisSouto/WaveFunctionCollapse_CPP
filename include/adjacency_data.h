@@ -15,6 +15,7 @@ private:
   size_t num_blocks;
   std::vector<uint64_t> neighbour_ids;
   std::vector<uint64_t> pattern_frequencies;
+  std::vector<double> pattern_freq_times_log_freqs;
   std::vector<uint64_t> patterns_at_boundaries;
   std::vector<size_t> pattern_offsets;
 
@@ -28,6 +29,9 @@ public:
   size_t getNum64Blocks() const { return num_64_blocks; }
   uint64_t getPatternFrequency(pattern_id_t pattern_id) {
     return pattern_frequencies[pattern_id];
+  }
+  double getPatternFreqTimesLogFreq(pattern_id_t pattern_id) {
+    return pattern_freq_times_log_freqs[pattern_id];
   }
   std::span<const uint64_t>
   getConstraintsForPatternAtDirection(pattern_id_t pattern_id,

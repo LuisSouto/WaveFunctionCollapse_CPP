@@ -40,16 +40,24 @@ std::span<const pattern_id_t> WFC::generateCollapsedGrid(size_t output_width,
       settings.block_size_x * settings.block_size_y * num64_blocks, 0);
   is_outside_block.resize(total_cells, 1);
   num_collapsed_cells = 0;
-  updateBackTrackingBlock();
 
   // Boundary conditions
+  initializeEntropyData();
   if (settings.boundary_condition == BoundaryCondition::FIXED) {
     applyBoundaryConditions();
   }
+  initializeEntropyData();
+  updateBackTrackingBlock();
 
-  size_t current_cell_index = 0;
+  size_t current_cell_index;
+  if (settings.cell_selection_strategy == CellSelectionStrategy::ENTROPY) {
+    current_cell_index = chooseNextCellEntropy();
+  } else {
+    current_cell_index = 0;
+  }
   size_t block_index_counter = 0;
   uint8_t no_contradictions;
+  size_t num_restarts = 0;
   // Collapse cells until the whole grid is collapsed
   while (num_collapsed_cells < total_cells) {
     collapsePatternAtCell(current_cell_index);
@@ -57,6 +65,7 @@ std::span<const pattern_id_t> WFC::generateCollapsedGrid(size_t output_width,
     if (!no_contradictions) {
       block_index_counter = 0;
       current_cell_index = restartBlock();
+      num_restarts++;
       continue;
     }
     block_index_counter++;
@@ -74,9 +83,14 @@ std::span<const pattern_id_t> WFC::generateCollapsedGrid(size_t output_width,
       }
       continue;
     }
-    current_cell_index = findCellToCollapse(current_cell_index);
+    if (settings.cell_selection_strategy == CellSelectionStrategy::ENTROPY) {
+      current_cell_index = chooseNextCellEntropy();
+    } else {
+      current_cell_index = chooseNextCellScanline(current_cell_index);
+    }
   }
 
+  std::cout << "Number of restarts: " << num_restarts << std::endl;
   return {collapsed_patterns.data(), collapsed_patterns.size()};
 }
 
@@ -105,9 +119,28 @@ void WFC::initializeGrid(size_t output_width, size_t output_height) {
   collapsed_patterns.assign(total_cells, 0);
 }
 
+void WFC::initializeEntropyData() {
+  entropy_data.weight_times_log_weights.clear();
+  entropy_data.weight_times_log_weights.resize(total_cells, 0);
+  entropy_data.weight_sums.clear();
+  entropy_data.weight_sums.resize(total_cells, 0);
+  for (size_t i = 0; i < total_cells; ++i) {
+    std::span<const pattern_id_t> patterns_at_cell = readPatternsAtCell(i);
+    double weight_times_log_weight = 0.0;
+    double weight_sum = 0;
+    for (pattern_id_t pattern_id : patterns_at_cell) {
+      weight_times_log_weight +=
+          adjacent_data.getPatternFreqTimesLogFreq(pattern_id);
+      weight_sum += adjacent_data.getPatternFrequency(pattern_id);
+    }
+    entropy_data.weight_times_log_weights[i] = weight_times_log_weight;
+    entropy_data.weight_sums[i] = weight_sum;
+  }
+}
+
 void WFC::bakeNeighbourIndexes() {
-  // Bake the neighbour indexes for each cell to avoid recalculating them during
-  // propagation
+  // Bake the neighbour indexes for each cell to avoid recalculating them
+  // during propagation
   neighbour_indexes.resize(total_cells * NUM_DIRECTIONS_2D);
   for (size_t cell_index = 0; cell_index < total_cells; cell_index++) {
     size_t x = cell_index % output_width;
@@ -201,6 +234,7 @@ size_t WFC::restartBlock() {
     }
   }
   num_collapsed_cells = snapshot_num_collapsed_cells;
+  initializeEntropyData();
   return current_block_y * output_width + current_block_x;
 }
 
@@ -215,8 +249,8 @@ size_t WFC::moveToNextBlock() {
   }
 
   // Now we copy back the block into the grid since we only keep the top left
-  // corner of the block (or the leftmost column if we reached the bottom of the
-  // image)
+  // corner of the block (or the leftmost column if we reached the bottom of
+  // the image)
   size_t min_x = (current_block_y + block_size_y >= output_height) ? 1 : 0;
   size_t min_y = (current_block_x + block_size_x >= output_width) ? 1 : 0;
   for (size_t y = min_y; y < block_size_y; y++) {
@@ -259,7 +293,7 @@ size_t WFC::moveToNextBlock() {
   return current_block_y * output_width + current_block_x;
 }
 
-size_t WFC::findCellToCollapse(size_t previous_cell_index) {
+size_t WFC::chooseNextCellScanline(size_t previous_cell_index) {
   size_t previous_x = previous_cell_index % output_width - current_block_x;
   size_t next_cell_index;
 
@@ -272,6 +306,24 @@ size_t WFC::findCellToCollapse(size_t previous_cell_index) {
     } else {
       // Reached the end of the grid
       return SIZE_MAX;
+    }
+  }
+  return next_cell_index;
+}
+
+size_t WFC::chooseNextCellEntropy() {
+  size_t next_cell_index = SIZE_MAX;
+  double min_entropy = std::numeric_limits<double>::max();
+  for (size_t i = 0; i < total_cells; ++i) {
+    if (is_cell_collapsed[i]) {
+      continue; // Skip collapsed cells
+    }
+    double weight_sum = entropy_data.weight_sums[i];
+    double entropy = entropy_data.weight_times_log_weights[i] -
+                     weight_sum * std::log(weight_sum);
+    if (entropy < min_entropy) {
+      min_entropy = entropy;
+      next_cell_index = i;
     }
   }
   return next_cell_index;
@@ -417,23 +469,32 @@ WFC::updateConstraintsOfNeighbour(std::span<const uint64_t> cell_constraints,
 
   size_t num_64_blocks = adjacent_data.getNum64Blocks();
   uint8_t has_changed = false;
-  uint8_t no_contradictions = false;
+  uint64_t no_contradictions = false;
   size_t start_index = neighbour_index * num_64_blocks;
   for (size_t i = 0; i < num_64_blocks; ++i) {
     uint64_t old_block = grid[start_index + i];
     uint64_t new_block = old_block & cell_constraints[i];
-    if (new_block > 0) {
-      no_contradictions = true;
-    }
+    no_contradictions |= new_block;
     if (new_block != old_block) {
       grid[start_index + i] = new_block;
+      uint64_t removed_patterns = old_block & ~new_block;
+      while (removed_patterns != 0) {
+        pattern_id_t removed_pattern_id =
+            (i << 6) + std::countr_zero(removed_patterns);
+        entropy_data.weight_times_log_weights[neighbour_index] -=
+            adjacent_data.getPatternFreqTimesLogFreq(removed_pattern_id);
+        entropy_data.weight_sums[neighbour_index] -=
+            adjacent_data.getPatternFrequency(removed_pattern_id);
+        removed_patterns &= (removed_patterns - 1);
+      }
       has_changed = true;
     }
   }
 
-  return {has_changed, no_contradictions};
+  return {has_changed, no_contradictions != 0};
 }
 
+// The constraints a cell applies to its neighbours
 std::span<const uint64_t> WFC::getConstraintsFromCell(size_t cell_index) {
   if (is_cell_collapsed[cell_index]) {
     pattern_id_t collapsed_pattern_id = collapsed_patterns[cell_index];
