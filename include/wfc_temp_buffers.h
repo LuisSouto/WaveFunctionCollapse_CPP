@@ -2,10 +2,11 @@
 
 #include <cstdint>
 #include <vector>
+#include <wfc_typedefs.h>
 
 struct WFCTempBuffers {
-  std::vector<uint64_t> neighbour_contribution;
-  std::vector<uint64_t> constraints_for_neighbour;
+  std::vector<pattern_id_t> cell_pattern_ids;
+  std::vector<uint64_t> pattern_frequencies;
   std::vector<uint64_t> constraints_from_cell;
   std::vector<uint32_t> cell_update_versions;
   std::vector<size_t> current_cell_wave;

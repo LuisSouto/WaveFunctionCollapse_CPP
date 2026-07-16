@@ -6,11 +6,11 @@
 #include <wfc_core.h>
 
 int main() {
-  std::string filename = "../Sprites/SimpleWall.png";
+  std::string filename = "../Sprites/Sewers.png";
   SpriteHolder sprite = SpriteReader::loadFromPng(filename.c_str(), STBI_rgb);
   size_t N = 2;
   OverlappingPatterns overlapping_patterns(sprite, N);
-  uint64_t seed = 385392;
+  uint64_t seed = 30295;
   WFC wfc(overlapping_patterns.getAdjacencyData(), seed);
   size_t output_width = 128;
   size_t output_height = 128;
@@ -29,9 +29,6 @@ int main() {
   stbi_write_png("../Results/output.png", output_width, output_height, channels,
                  output_pixels.data(), output_width * channels);
 
-  // TODO: backtracing
-  // TODO: boundary conditions
-  // TODO: entropy selection
   // TODO: if a cell has tons of possible patterns, just assume it does not
   // restrict its neighbours
   // TODO: if neighbour_constraints is all 1's avoid intersection
