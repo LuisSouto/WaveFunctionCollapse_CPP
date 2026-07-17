@@ -6,9 +6,9 @@
 #include <wfc_core.h>
 
 int main() {
-  std::string filename = "../Sprites/Sewers.png";
+  std::string filename = "../Sprites/Flowers.png";
   SpriteHolder sprite = SpriteReader::loadFromPng(filename.c_str(), STBI_rgb);
-  size_t N = 2;
+  size_t N = 3;
   OverlappingPatterns overlapping_patterns(sprite, N);
   uint64_t seed = 30295;
   WFC wfc(overlapping_patterns.getAdjacencyData(), seed);

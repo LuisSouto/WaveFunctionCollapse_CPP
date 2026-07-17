@@ -14,20 +14,12 @@
 std::span<const pattern_id_t> WFC::generateCollapsedGrid(size_t output_width,
                                                          size_t output_height) {
   total_cells = output_height * output_width;
-  size_t num64_blocks = adjacent_data.getNum64Blocks();
+  num64_blocks = adjacent_data.getNum64Blocks();
 
   // Initialize grid and other variables
   initializeGrid(output_width, output_height);
   bakeNeighbourIndexes();
-  temp_buffers.cell_pattern_ids.reserve(num64_blocks * 64);
-  temp_buffers.pattern_frequencies.reserve(num64_blocks * 64);
-  temp_buffers.constraints_from_cell.resize(num64_blocks * NUM_DIRECTIONS_2D,
-                                            0);
-  temp_buffers.cell_update_versions.resize(total_cells, 0);
-  temp_buffers.next_cell_wave.resize(total_cells);
-  temp_buffers.current_cell_wave.resize(total_cells);
-  temp_buffers.current_version = 0;
-
+  initializeTempBuffers();
   num_collapsed_cells = 0;
 
   // Boundary conditions
@@ -35,11 +27,13 @@ std::span<const pattern_id_t> WFC::generateCollapsedGrid(size_t output_width,
   if (settings.boundary_condition == BoundaryCondition::FIXED) {
     applyBoundaryConditions();
   }
+
   initializeEntropyData();
+  initializeUndoStack();
 
   size_t current_cell_index = 0;
   uint8_t no_contradictions;
-  uint32_t next_snapshot_interval = 32;
+  uint32_t next_snapshot_interval = 128;
   uint32_t snapshot_interval = 0;
   if (settings.cell_selection_strategy == CellSelectionStrategy::ENTROPY) {
     current_cell_index = chooseNextCellEntropy();
@@ -49,17 +43,20 @@ std::span<const pattern_id_t> WFC::generateCollapsedGrid(size_t output_width,
   saveSnapshot(current_cell_index);
   // Collapse cells until the whole grid is collapsed
   while (num_collapsed_cells < total_cells) {
+    if (snapshot_interval >= next_snapshot_interval) {
+      snapshot_interval = 0;
+      saveSnapshot(current_cell_index);
+    }
     collapsePatternAtCell(current_cell_index);
+    std::cout << "Collapsed cell " << current_cell_index << " ("
+              << num_collapsed_cells << "/" << total_cells << ")\n";
     no_contradictions = propagateConstraints(current_cell_index);
     ++snapshot_interval;
     if (!no_contradictions) {
       snapshot_interval = 0;
       current_cell_index = restoreSnapshot();
+      // propagateConstraints(current_cell_index);
       continue;
-    }
-    if (snapshot_interval >= next_snapshot_interval) {
-      snapshot_interval = 0;
-      saveSnapshot(current_cell_index);
     }
     if (settings.cell_selection_strategy == CellSelectionStrategy::ENTROPY) {
       current_cell_index = chooseNextCellEntropy();
@@ -76,24 +73,34 @@ void WFC::initializeGrid(size_t output_width, size_t output_height) {
   this->output_height = output_height;
 
   // First use 1's to mark every pattern as possible
-  size_t num_64_blocks = adjacent_data.getNum64Blocks();
-  grid.assign(total_cells * num_64_blocks, ~0ULL);
+  grid.assign(total_cells * num64_blocks, ~0ULL);
 
   // Clear the bits that are beyond the number of patterns
   size_t bits_to_remove = adjacent_data.getNumPatterns() % 64;
   if (bits_to_remove > 0) {
-    size_t last_block_offset = num_64_blocks - 1;
+    size_t last_block_offset = num64_blocks - 1;
     uint64_t tail_mask = (1ULL << bits_to_remove) - 1;
 
     size_t last_block_index = last_block_offset;
     for (size_t i = 0; i < total_cells; i++) {
       grid[last_block_index] = tail_mask;
-      last_block_index += num_64_blocks;
+      last_block_index += num64_blocks;
     }
   }
 
   is_cell_collapsed.assign(total_cells, 0);
   collapsed_patterns.assign(total_cells, 0);
+}
+
+void WFC::initializeTempBuffers() {
+  temp_buffers.cell_pattern_ids.reserve(num64_blocks * 64);
+  temp_buffers.pattern_frequencies.reserve(num64_blocks * 64);
+  temp_buffers.constraints_from_cell.resize(num64_blocks * NUM_DIRECTIONS_2D,
+                                            0);
+  temp_buffers.cell_update_versions.resize(total_cells, 0);
+  temp_buffers.next_cell_wave.resize(total_cells);
+  temp_buffers.current_cell_wave.resize(total_cells);
+  temp_buffers.current_version = 0;
 }
 
 void WFC::initializeEntropyData() {
@@ -103,7 +110,7 @@ void WFC::initializeEntropyData() {
   entropy_data.weight_sums.resize(total_cells, 0);
   for (size_t i = 0; i < total_cells; ++i) {
     std::span<const pattern_id_t> patterns_at_cell = readPatternsAtCell(i);
-    double weight_times_log_weight = 0.0;
+    double weight_times_log_weight = 0;
     double weight_sum = 0;
     for (pattern_id_t pattern_id : patterns_at_cell) {
       weight_times_log_weight +=
@@ -113,6 +120,21 @@ void WFC::initializeEntropyData() {
     entropy_data.weight_times_log_weights[i] = weight_times_log_weight;
     entropy_data.weight_sums[i] = weight_sum;
   }
+}
+
+void WFC::initializeUndoStack() {
+  undo_stack.clear();
+  undo_stack.reserve((num64_blocks + 3) * total_cells / 10);
+  stack_checkpoints.clear();
+  stack_checkpoints.reserve(1000);
+  num_collapsed_cells_at_snapshot.clear();
+  num_collapsed_cells_at_snapshot.reserve(1000);
+  stack_starting_cell_indexes.clear();
+  stack_starting_cell_indexes.reserve(1000);
+  consecutive_failures_at_snapshot.clear();
+  consecutive_failures_at_snapshot.reserve(1000);
+  stack_counter = 0;
+  total_snapshots = 0;
 }
 
 /* Bake the neighbour indexes for each cell to avoid recalculating them
@@ -143,8 +165,6 @@ void WFC::bakeNeighbourIndexes() {
 // restrict the patterns that can be placed at the boundaries of the output
 // image
 void WFC::applyBoundaryConditions() {
-  size_t num64_blocks = adjacent_data.getNum64Blocks();
-
   // TOP and BOTTOM ROWS
   std::vector<size_t> y_indexes = {0, output_height - 1};
   std::vector<size_t> directions = {Directions::UP, Directions::DOWN};
@@ -171,6 +191,7 @@ void WFC::applyBoundaryConditions() {
       for (size_t j = 0; j < num64_blocks; ++j) {
         grid[(y * output_width + x) * num64_blocks + j] &= boundary_patterns[j];
       }
+      propagateConstraints(y * output_width + x);
     }
   }
 }
@@ -198,9 +219,10 @@ size_t WFC::chooseNextCellEntropy() {
     if (is_cell_collapsed[i]) {
       continue; // Skip collapsed cells
     }
-    double weight_sum = entropy_data.weight_sums[i];
-    double entropy = entropy_data.weight_times_log_weights[i] -
-                     weight_sum * std::log(weight_sum);
+    const double w = entropy_data.weight_sums[i];
+    const double w_log_w = entropy_data.weight_times_log_weights[i];
+    double entropy = std::log(w) - w_log_w / w +
+                     dist(rng) * 1e-6; // Add a small random value to break ties
     if (entropy < min_entropy) {
       min_entropy = entropy;
       next_cell_index = i;
@@ -213,6 +235,7 @@ void WFC::collapsePatternAtCell(size_t cell_index) {
   if (is_cell_collapsed[cell_index]) {
     return; // Cell is already collapsed
   }
+  pushCellToUndoStack(cell_index);
 
   std::span<const pattern_id_t> possible_patterns =
       readPatternsAtCell(cell_index);
@@ -239,9 +262,8 @@ void WFC::collapsePatternAtCell(size_t cell_index) {
     }
   }
 
-  size_t num_64_blocks = adjacent_data.getNum64Blocks();
-  size_t start_index = cell_index * num_64_blocks;
-  for (size_t j = 0; j < num_64_blocks; j++) {
+  size_t start_index = cell_index * num64_blocks;
+  for (size_t j = 0; j < num64_blocks; j++) {
     grid[start_index + j] = 0;
   }
 
@@ -258,12 +280,11 @@ std::span<const pattern_id_t> WFC::readPatternsAtCell(size_t cell_index) {
     return {&collapsed_patterns[cell_index], 1};
   }
 
-  size_t num_64_blocks = adjacent_data.getNum64Blocks();
-  size_t start_index = cell_index * num_64_blocks;
+  size_t start_index = cell_index * num64_blocks;
 
   // Find all the significant bits in the 64-bit blocks
   temp_buffers.cell_pattern_ids.clear();
-  for (size_t i = 0; i < num_64_blocks; i++) {
+  for (size_t i = 0; i < num64_blocks; i++) {
     uint64_t block = grid[start_index + i];
     if (block == 0)
       continue;
@@ -297,7 +318,6 @@ uint8_t WFC::propagateConstraints(size_t cell_index) {
 }
 
 uint8_t WFC::extendPropagationRange() {
-  size_t num_64_blocks = adjacent_data.getNum64Blocks();
   temp_buffers.next_cell_wave.clear();
   for (size_t cell_index : temp_buffers.current_cell_wave) {
     // Restart version so it can be added back to the wave if needed
@@ -316,13 +336,12 @@ uint8_t WFC::extendPropagationRange() {
         size_t next_idx =
             neighbour_indexes[cell_index * NUM_DIRECTIONS_2D + i + 1];
         if (next_idx != SIZE_MAX) {
-          __builtin_prefetch(&grid[next_idx * num_64_blocks], 1, 3);
+          __builtin_prefetch(&grid[next_idx * num64_blocks], 1, 3);
         }
       }
 
       auto [has_changed, no_contradictions] = updateConstraintsOfNeighbour(
-          {&cell_constraints[i * num_64_blocks], num_64_blocks},
-          neighbour_index);
+          {&cell_constraints[i * num64_blocks], num64_blocks}, neighbour_index);
       if (!no_contradictions) {
         return false; // Stop propagation if a contradiction is found
       }
@@ -344,16 +363,20 @@ WFC::updateConstraintsOfNeighbour(std::span<const uint64_t> cell_constraints,
   if (is_cell_collapsed[neighbour_index]) {
     return {false, true}; // No need to update a collapsed cell
   }
-
-  size_t num_64_blocks = adjacent_data.getNum64Blocks();
   uint8_t has_changed = false;
+  uint8_t already_pushed = false;
   uint64_t no_contradictions = false;
-  size_t start_index = neighbour_index * num_64_blocks;
-  for (size_t i = 0; i < num_64_blocks; ++i) {
+  size_t start_index = neighbour_index * num64_blocks;
+  for (size_t i = 0; i < num64_blocks; ++i) {
     uint64_t old_block = grid[start_index + i];
     uint64_t new_block = old_block & cell_constraints[i];
     no_contradictions |= new_block;
     if (new_block != old_block) {
+      has_changed = true;
+      if (!already_pushed) {
+        pushCellToUndoStack(neighbour_index);
+        already_pushed = true;
+      }
       grid[start_index + i] = new_block;
       uint64_t removed_patterns = old_block & ~new_block;
       while (removed_patterns != 0) {
@@ -365,7 +388,6 @@ WFC::updateConstraintsOfNeighbour(std::span<const uint64_t> cell_constraints,
             adjacent_data.getPatternFrequency(removed_pattern_id);
         removed_patterns &= (removed_patterns - 1);
       }
-      has_changed = true;
     }
   }
 
@@ -379,13 +401,12 @@ std::span<const uint64_t> WFC::getConstraintsFromCell(size_t cell_index) {
     return adjacent_data.getConstraintsFromPattern(collapsed_pattern_id);
   }
 
-  size_t num_64_blocks = adjacent_data.getNum64Blocks();
-  size_t start_index = cell_index * num_64_blocks;
+  size_t start_index = cell_index * num64_blocks;
   std::fill(temp_buffers.constraints_from_cell.begin(),
             temp_buffers.constraints_from_cell.end(), 0ULL);
 
   // Find all the significant bits in the 64-bit blocks
-  for (size_t i = 0; i < num_64_blocks; i++) {
+  for (size_t i = 0; i < num64_blocks; i++) {
     uint64_t block = grid[start_index + i];
     if (block == 0)
       continue;
@@ -396,7 +417,7 @@ std::span<const uint64_t> WFC::getConstraintsFromCell(size_t cell_index) {
       std::span<const uint64_t> constraints_from_pattern =
           adjacent_data.getConstraintsFromPattern(pattern_id);
 
-      for (size_t j = 0; j < NUM_DIRECTIONS_2D * num_64_blocks; j++) {
+      for (size_t j = 0; j < NUM_DIRECTIONS_2D * num64_blocks; j++) {
         temp_buffers.constraints_from_cell[j] |= constraints_from_pattern[j];
       }
       block &= (block - 1); // Clear the least significant bit set
@@ -408,43 +429,48 @@ std::span<const uint64_t> WFC::getConstraintsFromCell(size_t cell_index) {
 }
 
 void WFC::saveSnapshot(size_t current_cell_index) {
-  // Reset failures of previous snapshot if we are saving a new one
-  if (total_snapshots >= 0) {
-    snapshot[total_snapshots % max_snapshots].consecutive_failures = 0;
-  }
-
-  ++total_snapshots;
-  size_t snapshot_index = total_snapshots % max_snapshots;
-
-  snapshot[snapshot_index].grid = grid;
-  snapshot[snapshot_index].is_cell_collapsed = is_cell_collapsed;
-  snapshot[snapshot_index].collapsed_patterns = collapsed_patterns;
-  snapshot[snapshot_index].entropy_weight_times_log_weights =
-      entropy_data.weight_times_log_weights;
-  snapshot[snapshot_index].entropy_weight_sums = entropy_data.weight_sums;
-  snapshot[snapshot_index].num_collapsed_cells = num_collapsed_cells;
-  snapshot[snapshot_index].consecutive_failures = 0;
-  snapshot[snapshot_index].current_cell_index = current_cell_index;
   failed_snapshots = 0;
+  stack_checkpoints.push_back(stack_counter);
+  num_collapsed_cells_at_snapshot.push_back(num_collapsed_cells);
+  stack_starting_cell_indexes.push_back(current_cell_index);
+  consecutive_failures_at_snapshot.push_back(0);
+  ++total_snapshots;
 }
 
 size_t WFC::restoreSnapshot() {
-  size_t snapshot_index = total_snapshots % max_snapshots;
-  if (snapshot[snapshot_index].consecutive_failures >=
-      snapshot[snapshot_index].max_consecutive_failures) {
+  stack_counter = stack_checkpoints.back();
+  size_t cell_index = 0;
+  size_t stride = num64_blocks + 3;
+  size_t num_updates = undo_stack.size() / stride - stack_counter;
+  for (size_t i = num_updates; i > 0; --i) {
+    size_t start = stride * (i - 1 + stack_counter);
+    cell_index = static_cast<size_t>(undo_stack[start]);
+
+    entropy_data.weight_sums[cell_index] =
+        std::bit_cast<double>(undo_stack[start + 1]);
+    entropy_data.weight_times_log_weights[cell_index] =
+        std::bit_cast<double>(undo_stack[start + 2]);
+
+    for (size_t j = 0; j < num64_blocks; ++j) {
+      grid[cell_index * num64_blocks + j] = undo_stack[start + 3 + j];
+    }
+    is_cell_collapsed[cell_index] = false;
+  }
+  // Remove the patterns that were collapsed in the snapshot
+  cell_index = stack_starting_cell_indexes.back();
+  // pattern_id_t collapsed_pattern_id = collapsed_patterns[cell_index];
+  // size_t target_block = collapsed_pattern_id / 64;
+  // int target_bit = collapsed_pattern_id % 64;
+  // grid[cell_index * num64_blocks + target_block] &= ~(1ULL << target_bit);
+
+  undo_stack.resize(stack_counter * stride);
+  num_collapsed_cells = num_collapsed_cells_at_snapshot.back();
+  ++consecutive_failures_at_snapshot.back();
+  if (consecutive_failures_at_snapshot.back() >= max_consecutive_failures) {
     return backTrackToPreviousSnapshot();
   }
 
-  grid = snapshot[snapshot_index].grid;
-  is_cell_collapsed = snapshot[snapshot_index].is_cell_collapsed;
-  collapsed_patterns = snapshot[snapshot_index].collapsed_patterns;
-  entropy_data.weight_times_log_weights =
-      snapshot[snapshot_index].entropy_weight_times_log_weights;
-  entropy_data.weight_sums = snapshot[snapshot_index].entropy_weight_sums;
-  num_collapsed_cells = snapshot[snapshot_index].num_collapsed_cells;
-  ++snapshot[snapshot_index].consecutive_failures;
-
-  return snapshot[snapshot_index].current_cell_index;
+  return cell_index;
 }
 
 size_t WFC::backTrackToPreviousSnapshot() {
@@ -456,5 +482,28 @@ size_t WFC::backTrackToPreviousSnapshot() {
   }
 
   --total_snapshots;
+  consecutive_failures_at_snapshot.pop_back();
+  stack_checkpoints.pop_back();
+  num_collapsed_cells_at_snapshot.pop_back();
+  stack_starting_cell_indexes.pop_back();
+  if (!consecutive_failures_at_snapshot.empty()) {
+    ++consecutive_failures_at_snapshot.back();
+  }
   return restoreSnapshot();
+}
+
+void WFC::pushCellToUndoStack(size_t cell_idx) {
+  // Order of data starting from end:
+  // [Index][WeightSum][WLogW][Block0][Block1]...
+  undo_stack.push_back(static_cast<uint64_t>(cell_idx));
+  undo_stack.push_back(
+      std::bit_cast<uint64_t>(entropy_data.weight_sums[cell_idx]));
+  undo_stack.push_back(
+      std::bit_cast<uint64_t>(entropy_data.weight_times_log_weights[cell_idx]));
+
+  size_t start = cell_idx * num64_blocks;
+  for (size_t i = 0; i < num64_blocks; ++i) {
+    undo_stack.push_back(grid[start + i]);
+  }
+  ++stack_counter;
 }

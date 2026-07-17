@@ -8,7 +8,6 @@
 #include <span>
 #include <vector>
 #include <wfc_settings.h>
-#include <wfc_snapshot.h>
 #include <wfc_temp_buffers.h>
 #include <wfc_typedefs.h>
 
@@ -16,27 +15,37 @@ class WFC {
 private:
   const static uint32_t max_snapshots = 100;
   std::vector<uint64_t> grid;
+  std::vector<uint64_t> undo_stack;
   std::vector<size_t> neighbour_indexes;
-  std::vector<uint8_t> is_cell_collapsed;
+  std::vector<size_t> stack_checkpoints;
+  std::vector<size_t> stack_starting_cell_indexes;
+  std::vector<uint32_t> num_collapsed_cells_at_snapshot;
+  std::vector<uint32_t> consecutive_failures_at_snapshot;
   std::vector<pattern_id_t> collapsed_patterns;
+  std::vector<uint8_t> is_cell_collapsed;
   WFCTempBuffers temp_buffers;
   AdjacencyData adjacent_data;
-  WFCSnapshot snapshot[max_snapshots];
   EntropyData entropy_data;
   WFCSettings settings;
   std::mt19937_64 rng;
+  std::uniform_real_distribution<> dist{0.0, 1.0};
   uint64_t num_collapsed_cells = 0;
-  uint64_t snapshot_num_collapsed_cells = 0;
+  uint64_t stack_counter = 0;
   size_t output_width;
   size_t output_height;
   size_t total_cells;
-  int total_snapshots = -1;
-  uint32_t snapshot_index = 0;
+  size_t num64_blocks;
   uint32_t failed_snapshots = 0;
+  uint32_t max_consecutive_failures = 100;
+  uint32_t total_snapshots = 0;
 
   void initializeGrid(size_t output_width, size_t output_height);
 
+  void initializeTempBuffers();
+
   void initializeEntropyData();
+
+  void initializeUndoStack();
 
   void applyBoundaryConditions();
 
@@ -66,11 +75,7 @@ private:
 
   size_t backTrackToPreviousSnapshot();
 
-  void updateBackTrackingBlock();
-
-  size_t restartBlock();
-
-  size_t moveToNextBlock();
+  void pushCellToUndoStack(size_t cell_index);
 
 public:
   WFC(const AdjacencyData &adjacent_data) : adjacent_data(adjacent_data) {
