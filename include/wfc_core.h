@@ -16,6 +16,7 @@ private:
   const static uint32_t max_snapshots = 100;
   std::vector<uint64_t> grid;
   std::vector<uint64_t> undo_stack;
+  std::vector<uint64_t> collapsed_mask;
   std::vector<size_t> neighbour_indexes;
   std::vector<size_t> stack_checkpoints;
   std::vector<size_t> stack_starting_cell_indexes;
@@ -38,12 +39,16 @@ private:
   uint32_t failed_snapshots = 0;
   uint32_t max_consecutive_failures = 100;
   uint32_t total_snapshots = 0;
+  uint32_t total_failures = 0;
+  uint32_t max_total_failures = 5000;
 
   void initializeGrid(size_t output_width, size_t output_height);
 
   void initializeTempBuffers();
 
   void initializeEntropyData();
+
+  double calculateEntropyAtCell(size_t cell_index);
 
   void initializeUndoStack();
 

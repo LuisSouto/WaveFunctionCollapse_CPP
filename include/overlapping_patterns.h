@@ -13,18 +13,18 @@
 /*Looks for patterns in a sample image using overlapping.*/
 class OverlappingPatterns {
 private:
+  std::vector<uint64_t> pattern_frequencies;
+  std::vector<uint64_t> patterns_at_boundaries;
+  std::vector<pattern_hash_t> grid_pattern_hashes;
+  std::vector<pattern_id_t> grid_pattern_ids;
+  std::vector<uint8_t> ids_to_pixels;
+  std::unordered_map<pattern_hash_t, pattern_id_t> hashes_to_ids;
+  AdjacencyData adjacent_data;
   size_t N;
   size_t channels;
   size_t width;
   size_t height;
   size_t total_pixels;
-  std::vector<pattern_hash_t> grid_pattern_hashes;
-  std::unordered_map<pattern_hash_t, pattern_id_t> hashes_to_ids;
-  std::vector<pattern_id_t> grid_pattern_ids;
-  std::vector<uint8_t> ids_to_pixels;
-  std::vector<uint64_t> pattern_frequencies;
-  std::vector<uint64_t> patterns_at_boundaries;
-  AdjacencyData adjacent_data;
   void computePatternHashes(const SpriteHolder &sprite, size_t N);
   void mapHashesToIds();
   void computeGridIds();
@@ -35,7 +35,10 @@ private:
 
 public:
   OverlappingPatterns(const SpriteHolder &sprite, int N);
+
   AdjacencyData getAdjacencyData() const { return adjacent_data; }
-  std::vector<uint8_t> getIdsToPixels(std::span<const pattern_id_t> pattern_ids,
-                                      size_t width, size_t height) const;
+
+  std::vector<uint8_t>
+  convertIdsToPixels(std::span<const pattern_id_t> pattern_ids, size_t width,
+                     size_t height) const;
 };

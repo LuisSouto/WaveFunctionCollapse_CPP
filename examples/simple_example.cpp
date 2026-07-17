@@ -6,11 +6,11 @@
 #include <wfc_core.h>
 
 int main() {
-  std::string filename = "../Sprites/Flowers.png";
+  std::string filename = "../Sprites/simple_road.png";
   SpriteHolder sprite = SpriteReader::loadFromPng(filename.c_str(), STBI_rgb);
   size_t N = 3;
   OverlappingPatterns overlapping_patterns(sprite, N);
-  uint64_t seed = 30295;
+  uint64_t seed = 48472;
   WFC wfc(overlapping_patterns.getAdjacencyData(), seed);
   size_t output_width = 128;
   size_t output_height = 128;
@@ -21,7 +21,7 @@ int main() {
     collapsed_grid =
         wfc.generateCollapsedGrid(output_width - N + 1, output_height - N + 1);
   }
-  std::vector<uint8_t> output_pixels = overlapping_patterns.getIdsToPixels(
+  std::vector<uint8_t> output_pixels = overlapping_patterns.convertIdsToPixels(
       collapsed_grid, output_width - N + 1, output_height - N + 1);
 
   // convert the output_pixels to an image and save it as a PNG file

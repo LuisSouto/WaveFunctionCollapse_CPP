@@ -155,9 +155,9 @@ void OverlappingPatterns::findBoundaryPatterns() {
   }
 }
 
-std::vector<uint8_t>
-OverlappingPatterns::getIdsToPixels(std::span<const pattern_id_t> pattern_ids,
-                                    size_t width, size_t height) const {
+std::vector<uint8_t> OverlappingPatterns::convertIdsToPixels(
+    std::span<const pattern_id_t> pattern_ids, size_t width,
+    size_t height) const {
   std::vector<uint8_t> output_pixels;
   size_t output_width = width + N - 1;
   size_t output_height = height + N - 1;
