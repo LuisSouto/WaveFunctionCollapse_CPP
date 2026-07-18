@@ -34,6 +34,7 @@ private:
   uint64_t stack_counter = 0;
   size_t output_width;
   size_t output_height;
+  size_t start_index;
   size_t total_cells;
   size_t num64_blocks;
   uint32_t failed_snapshots = 0;
@@ -41,6 +42,7 @@ private:
   uint32_t total_snapshots = 0;
   uint32_t total_failures = 0;
   uint32_t max_total_failures = 5000;
+  int scan_direction = 1; // 1 for forward, -1 for backward
 
   void initializeGrid(size_t output_width, size_t output_height);
 
@@ -82,7 +84,8 @@ private:
 
   void pushCellToUndoStack(size_t cell_index);
 
-  bool generateCollapsedGrid(size_t output_width, size_t output_height);
+  bool generateCollapsedGrid(size_t output_width, size_t output_height,
+                             size_t start_index);
 
 public:
   WFC(const AdjacencyData &adjacent_data) : adjacent_data(adjacent_data) {
@@ -93,6 +96,6 @@ public:
   WFC(const AdjacencyData &adjacent_data, uint64_t seed)
       : adjacent_data(adjacent_data), rng(seed) {};
 
-  std::span<const pattern_id_t> solve(size_t output_width,
-                                      size_t output_height);
+  std::span<const pattern_id_t> solve(size_t output_width, size_t output_height,
+                                      size_t start_index);
 };

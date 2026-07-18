@@ -7,7 +7,7 @@
 #include <wfc_core.h>
 
 int main() {
-  std::string filename = "../Sprites/Rule126.png";
+  std::string filename = "../Sprites/Platformer.png";
   SpriteHolder sprite = SpriteReader::loadFromPng(filename.c_str(), STBI_rgb);
   size_t N = 3;
   OverlappingPatterns overlapping_patterns(sprite, N);
@@ -16,23 +16,32 @@ int main() {
   WFC wfc(overlapping_patterns.getAdjacencyData(), seed);
   size_t output_width = 128;
   size_t output_height = 128;
+  size_t adj_output_width = output_width - N + 1;
+  size_t adj_output_height = output_height - N + 1;
   std::span<const pattern_id_t> collapsed_grid;
+  // Random number generator for the starting index
+  std::mt19937_64 rng(seed);
+  std::uniform_int_distribution<size_t> dist(
+      0, adj_output_width * adj_output_height - 1);
 
-  // run 1000 times
-  for (size_t i = 0; i < 1; i++) {
-    collapsed_grid = wfc.solve(output_width - N + 1, output_height - N + 1);
+  // Generate images
+  for (size_t i = 0; i < 100; i++) {
+    collapsed_grid = wfc.solve(adj_output_width, adj_output_height, dist(rng));
+    std::vector<uint8_t> output_pixels =
+        overlapping_patterns.convertIdsToPixels(
+            collapsed_grid, adj_output_width, adj_output_height);
+
+    // convert the output_pixels to an image and save it as a PNG file
+    int channels = sprite.getChannels();
+    std::string output_filename =
+        "../Results/output" + std::to_string(i) + ".png";
+    stbi_write_png(output_filename.c_str(), output_width, output_height,
+                   channels, output_pixels.data(), output_width * channels);
   }
-  std::vector<uint8_t> output_pixels = overlapping_patterns.convertIdsToPixels(
-      collapsed_grid, output_width - N + 1, output_height - N + 1);
-
-  // convert the output_pixels to an image and save it as a PNG file
-  int channels = sprite.getChannels();
-  stbi_write_png("../Results/output.png", output_width, output_height, channels,
-                 output_pixels.data(), output_width * channels);
 
   // TODO: if a cell has tons of possible patterns, just assume it does not
   // restrict its neighbours
   // TODO: if neighbour_constraints is all 1's avoid intersection
-  // TODO: enable periodic boundary conditions
+  // TODO: allow setting initial constraints for specific cells
   return 0;
 }

@@ -12,20 +12,24 @@
 #include <wfc_globals.h>
 #include <wfc_typedefs.h>
 
-std::span<const pattern_id_t> WFC::solve(size_t output_width,
-                                         size_t output_height) {
-  bool success = generateCollapsedGrid(output_width, output_height);
+std::span<const pattern_id_t>
+WFC::solve(size_t output_width, size_t output_height, size_t start_index) {
+  bool success =
+      generateCollapsedGrid(output_width, output_height, start_index);
   while (!success) {
     std::cerr << "Failed to generate a valid collapsed grid. Retrying..."
               << std::endl;
-    success = generateCollapsedGrid(output_width, output_height);
+    success = generateCollapsedGrid(output_width, output_height, start_index);
   }
   return {collapsed_patterns.data(), collapsed_patterns.size()};
 }
 
-bool WFC::generateCollapsedGrid(size_t output_width, size_t output_height) {
+bool WFC::generateCollapsedGrid(size_t output_width, size_t output_height,
+                                size_t start_index) {
   total_cells = output_height * output_width;
   num64_blocks = adjacent_data.getNum64Blocks();
+  this->start_index = start_index;
+  scan_direction = 1;
 
   // Initialize grid and other variables
   initializeGrid(output_width, output_height);
@@ -50,7 +54,7 @@ bool WFC::generateCollapsedGrid(size_t output_width, size_t output_height) {
   if (settings.cell_selection_strategy == CellSelectionStrategy::ENTROPY) {
     current_cell_index = chooseNextCellEntropy();
   } else {
-    current_cell_index = 0;
+    current_cell_index = start_index;
   }
   saveSnapshot(current_cell_index);
   // Collapse cells until the whole grid is collapsed
@@ -253,19 +257,11 @@ void WFC::applyBoundaryConditions() {
 }
 
 size_t WFC::chooseNextCellScanline(size_t previous_cell_index) {
-  size_t previous_x = previous_cell_index % output_width;
-
-  if (previous_x + 1 < output_width) {
-    return previous_cell_index + 1;
-  } else {
-    size_t next_y = (previous_cell_index / output_width) + 1;
-    if (next_y < output_height) {
-      return next_y * output_width;
-    } else {
-      // Reached the end of the grid
-      return SIZE_MAX;
-    }
+  if (previous_cell_index == total_cells - 1) {
+    scan_direction = -1;    // Change direction to backward
+    return start_index - 1; // Now go backwards from start_index - 1 to 0
   }
+  return previous_cell_index + scan_direction;
 }
 
 size_t WFC::chooseNextCellEntropy() {
@@ -508,6 +504,9 @@ size_t WFC::restoreSnapshot() {
   for (size_t i = num_updates; i > 0; --i) {
     size_t start = stride * (i - 1 + stack_counter);
     cell_index = static_cast<size_t>(undo_stack[start]);
+    if (cell_index == total_cells - 1) {
+      scan_direction = 1; // Reset scan direction to forward
+    }
 
     entropy_data.weight_sums[cell_index] =
         std::bit_cast<double>(undo_stack[start + 1]);
