@@ -4,6 +4,7 @@
 #include <cstdint>
 #include <directions.h>
 #include <iostream>
+#include <math.h>
 #include <random>
 #include <span>
 #include <vector>
@@ -11,8 +12,18 @@
 #include <wfc_globals.h>
 #include <wfc_typedefs.h>
 
-std::span<const pattern_id_t> WFC::generateCollapsedGrid(size_t output_width,
-                                                         size_t output_height) {
+std::span<const pattern_id_t> WFC::solve(size_t output_width,
+                                         size_t output_height) {
+  bool success = generateCollapsedGrid(output_width, output_height);
+  while (!success) {
+    std::cerr << "Failed to generate a valid collapsed grid. Retrying..."
+              << std::endl;
+    success = generateCollapsedGrid(output_width, output_height);
+  }
+  return {collapsed_patterns.data(), collapsed_patterns.size()};
+}
+
+bool WFC::generateCollapsedGrid(size_t output_width, size_t output_height) {
   total_cells = output_height * output_width;
   num64_blocks = adjacent_data.getNum64Blocks();
 
@@ -25,7 +36,7 @@ std::span<const pattern_id_t> WFC::generateCollapsedGrid(size_t output_width,
 
   // Boundary conditions
   initializeEntropyData();
-  if (settings.boundary_condition == BoundaryCondition::FIXED) {
+  if (settings.force_boundary_patterns) {
     applyBoundaryConditions();
   }
 
@@ -34,7 +45,7 @@ std::span<const pattern_id_t> WFC::generateCollapsedGrid(size_t output_width,
 
   size_t current_cell_index = 0;
   uint8_t no_contradictions;
-  uint32_t next_snapshot_interval = 16;
+  uint32_t next_snapshot_interval = 1;
   uint32_t snapshot_interval = 0;
   if (settings.cell_selection_strategy == CellSelectionStrategy::ENTROPY) {
     current_cell_index = chooseNextCellEntropy();
@@ -56,9 +67,7 @@ std::span<const pattern_id_t> WFC::generateCollapsedGrid(size_t output_width,
       current_cell_index = restoreSnapshot();
       // propagateConstraints(current_cell_index);
       if (total_failures >= max_total_failures) {
-        std::cout << "Max total failures reached. Restarting from scratch."
-                  << std::endl;
-        return generateCollapsedGrid(output_width, output_height);
+        return false;
       }
       continue;
     }
@@ -70,7 +79,7 @@ std::span<const pattern_id_t> WFC::generateCollapsedGrid(size_t output_width,
   }
 
   std::cout << "Total failures: " << total_failures << std::endl;
-  return {collapsed_patterns.data(), collapsed_patterns.size()};
+  return true;
 }
 
 void WFC::initializeGrid(size_t output_width, size_t output_height) {
@@ -86,17 +95,19 @@ void WFC::initializeGrid(size_t output_width, size_t output_height) {
   if (bits_to_remove > 0) {
     tail_mask = (1ULL << bits_to_remove) - 1;
   }
+
   // Remove exclusively boundary patterns from the grid
   std::span<const uint64_t> exclusively_boundary_patterns =
       adjacent_data.getExclusivelyBoundaryPatterns();
 
   for (size_t y = 0; y < output_height; ++y) {
     for (size_t x = 0; x < output_width; ++x) {
+      size_t cell_index = y * output_width + x;
       if (y == 0 || y == output_height - 1 || x == 0 || x == output_width - 1) {
+        grid[cell_index * num64_blocks + num64_blocks - 1] &= tail_mask;
         continue; // Skip boundary cells
       }
       bool impossible_grid = true;
-      size_t cell_index = y * output_width + x;
       for (size_t j = 0; j < num64_blocks - 1; ++j) {
         grid[cell_index * num64_blocks + j] &=
             ~exclusively_boundary_patterns[j];
@@ -390,7 +401,6 @@ uint8_t WFC::extendPropagationRange() {
           __builtin_prefetch(&grid[next_idx * num64_blocks], 1, 3);
         }
       }
-
       auto [has_changed, no_contradictions] = updateConstraintsOfNeighbour(
           {&cell_constraints[i * num64_blocks], num64_blocks}, neighbour_index);
       if (!no_contradictions) {
@@ -461,7 +471,6 @@ std::span<const uint64_t> WFC::getConstraintsFromCell(size_t cell_index) {
     uint64_t block = grid[start_index + i];
     if (block == 0)
       continue;
-
     pattern_id_t block_base_id = i * 64; // Accumulated id for each block
     while (block != 0) {
       pattern_id_t pattern_id = block_base_id + std::countr_zero(block);
@@ -485,6 +494,9 @@ void WFC::saveSnapshot(size_t current_cell_index) {
   num_collapsed_cells_at_snapshot.push_back(num_collapsed_cells);
   stack_starting_cell_indexes.push_back(current_cell_index);
   consecutive_failures_at_snapshot.push_back(0);
+  if (total_failures > 0) {
+    --total_failures;
+  }
   ++total_snapshots;
 }
 

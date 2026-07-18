@@ -13,7 +13,7 @@
 
 class WFC {
 private:
-  const static uint32_t max_snapshots = 100;
+  const static uint32_t max_snapshots = 10000;
   std::vector<uint64_t> grid;
   std::vector<uint64_t> undo_stack;
   std::vector<uint64_t> collapsed_mask;
@@ -82,6 +82,8 @@ private:
 
   void pushCellToUndoStack(size_t cell_index);
 
+  bool generateCollapsedGrid(size_t output_width, size_t output_height);
+
 public:
   WFC(const AdjacencyData &adjacent_data) : adjacent_data(adjacent_data) {
     std::random_device rd;
@@ -91,6 +93,6 @@ public:
   WFC(const AdjacencyData &adjacent_data, uint64_t seed)
       : adjacent_data(adjacent_data), rng(seed) {};
 
-  std::span<const pattern_id_t> generateCollapsedGrid(size_t output_width,
-                                                      size_t output_height);
+  std::span<const pattern_id_t> solve(size_t output_width,
+                                      size_t output_height);
 };

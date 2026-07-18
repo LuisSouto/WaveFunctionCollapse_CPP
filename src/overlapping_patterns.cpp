@@ -22,16 +22,29 @@ void OverlappingPatterns::computePatternHashes(const SpriteHolder &sprite,
   this->N = N;
   width = sprite.getWidth() - N + 1;
   height = sprite.getHeight() - N + 1;
+
+  if (settings.boundary_condition == BoundaryCondition::PERIODIC_X ||
+      settings.boundary_condition == BoundaryCondition::PERIODIC) {
+    width = sprite.getWidth();
+  }
+  if (settings.boundary_condition == BoundaryCondition::PERIODIC_Y ||
+      settings.boundary_condition == BoundaryCondition::PERIODIC) {
+    height = sprite.getHeight();
+  }
+
   total_pixels = width * height;
   channels = sprite.getChannels();
   grid_pattern_hashes.clear();
   grid_pattern_hashes.resize(width * height);
   for (size_t y = 0; y < height; y++) {
+    size_t adj_y = y % (sprite.getHeight() - N + 1);
     for (size_t x = 0; x < width; x++) {
+      size_t adj_x = x % (sprite.getWidth() - N + 1);
       pattern_hash_t pattern_hash = 0;
       for (size_t dy = 0; dy < N; dy++) {
         for (size_t dx = 0; dx < N; dx++) {
-          const pixel_hash_t pixelHash = sprite.getPixelHash(x + dx, y + dy);
+          const pixel_hash_t pixelHash =
+              sprite.getPixelHash(adj_x + dx, adj_y + dy);
           pattern_hash = hash_combine(pattern_hash, pixelHash);
         }
       }
@@ -62,12 +75,14 @@ void OverlappingPatterns::mapIdsToPixels(const SpriteHolder &sprite) {
   ids_to_pixels.resize(hashes_to_ids.size() * N * N * channels);
   size_t pattern_id = 0;
   for (size_t y = 0; y < height; ++y) {
+    size_t adj_y = y % (sprite.getHeight() - N + 1);
     for (size_t x = 0; x < width; ++x) {
+      size_t adj_x = x % (sprite.getWidth() - N + 1);
       pattern_hash_t pattern_hash = grid_pattern_hashes[y * width + x];
       if (hashes_to_ids[pattern_hash] == pattern_id) {
         size_t start_index = pattern_id * N * N * channels;
         for (size_t dy = 0; dy < N; ++dy) {
-          const uint8_t *pixel_row = sprite.getPixelPointer(x, y + dy);
+          const uint8_t *pixel_row = sprite.getPixelPointer(adj_x, adj_y + dy);
           uint8_t *pixel_destination =
               &ids_to_pixels[start_index + dy * N * channels];
           std::copy(pixel_row, pixel_row + N * channels, pixel_destination);

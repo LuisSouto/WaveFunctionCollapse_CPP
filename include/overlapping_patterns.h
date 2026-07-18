@@ -8,6 +8,7 @@
 #include <sys/types.h>
 #include <unordered_map>
 #include <vector>
+#include <wfc_settings.h>
 #include <wfc_typedefs.h>
 
 /*Looks for patterns in a sample image using overlapping.*/
@@ -20,6 +21,7 @@ private:
   std::vector<uint8_t> ids_to_pixels;
   std::unordered_map<pattern_hash_t, pattern_id_t> hashes_to_ids;
   AdjacencyData adjacent_data;
+  WFCSettings settings;
   size_t N;
   size_t channels;
   size_t width;
