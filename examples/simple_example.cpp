@@ -13,7 +13,7 @@ int main() {
   OverlappingPatterns overlapping_patterns(sprite, N);
   uint64_t seed = std::chrono::system_clock::now().time_since_epoch().count();
   // uint64_t seed = 5;
-  WFC wfc(overlapping_patterns.getAdjacencyData(), seed);
+  WFCCore wfc(overlapping_patterns.getAdjacencyData(), seed);
   size_t output_width = 128;
   size_t output_height = 128;
   size_t adj_output_width = output_width - N + 1;

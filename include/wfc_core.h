@@ -11,7 +11,7 @@
 #include <wfc_temp_buffers.h>
 #include <wfc_typedefs.h>
 
-class WFC {
+class WFCCore {
 private:
   const static uint32_t max_snapshots = 10000;
   std::vector<uint64_t> grid;
@@ -88,12 +88,12 @@ private:
                              size_t start_index);
 
 public:
-  WFC(const AdjacencyData &adjacent_data) : adjacent_data(adjacent_data) {
+  WFCCore(const AdjacencyData &adjacent_data) : adjacent_data(adjacent_data) {
     std::random_device rd;
     rng = std::mt19937_64(rd());
   };
 
-  WFC(const AdjacencyData &adjacent_data, uint64_t seed)
+  WFCCore(const AdjacencyData &adjacent_data, uint64_t seed)
       : adjacent_data(adjacent_data), rng(seed) {};
 
   std::span<const pattern_id_t> solve(size_t output_width, size_t output_height,

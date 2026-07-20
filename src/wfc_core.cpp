@@ -13,7 +13,7 @@
 #include <wfc_typedefs.h>
 
 std::span<const pattern_id_t>
-WFC::solve(size_t output_width, size_t output_height, size_t start_index) {
+WFCCore::solve(size_t output_width, size_t output_height, size_t start_index) {
   bool success =
       generateCollapsedGrid(output_width, output_height, start_index);
   while (!success) {
@@ -24,8 +24,8 @@ WFC::solve(size_t output_width, size_t output_height, size_t start_index) {
   return {collapsed_patterns.data(), collapsed_patterns.size()};
 }
 
-bool WFC::generateCollapsedGrid(size_t output_width, size_t output_height,
-                                size_t start_index) {
+bool WFCCore::generateCollapsedGrid(size_t output_width, size_t output_height,
+                                    size_t start_index) {
   total_cells = output_height * output_width;
   num64_blocks = adjacent_data.getNum64Blocks();
   this->start_index = start_index;
@@ -86,7 +86,7 @@ bool WFC::generateCollapsedGrid(size_t output_width, size_t output_height,
   return true;
 }
 
-void WFC::initializeGrid(size_t output_width, size_t output_height) {
+void WFCCore::initializeGrid(size_t output_width, size_t output_height) {
   this->output_width = output_width;
   this->output_height = output_height;
 
@@ -141,7 +141,7 @@ void WFC::initializeGrid(size_t output_width, size_t output_height) {
   }
 }
 
-void WFC::initializeTempBuffers() {
+void WFCCore::initializeTempBuffers() {
   temp_buffers.cell_pattern_ids.reserve(num64_blocks * 64);
   temp_buffers.pattern_frequencies.reserve(num64_blocks * 64);
   temp_buffers.constraints_from_cell.resize(num64_blocks * NUM_DIRECTIONS_2D,
@@ -152,7 +152,7 @@ void WFC::initializeTempBuffers() {
   temp_buffers.current_version = 0;
 }
 
-void WFC::initializeEntropyData() {
+void WFCCore::initializeEntropyData() {
   entropy_data.weight_times_log_weights.clear();
   entropy_data.weight_times_log_weights.resize(total_cells, 0);
   entropy_data.weight_sums.clear();
@@ -171,7 +171,7 @@ void WFC::initializeEntropyData() {
   }
 }
 
-double WFC::calculateEntropyAtCell(size_t cell_index) {
+double WFCCore::calculateEntropyAtCell(size_t cell_index) {
   double w = entropy_data.weight_sums[cell_index];
   double w_log_w = entropy_data.weight_times_log_weights[cell_index];
 
@@ -182,7 +182,7 @@ double WFC::calculateEntropyAtCell(size_t cell_index) {
   return std::log(w) - (w_log_w / w);
 }
 
-void WFC::initializeUndoStack() {
+void WFCCore::initializeUndoStack() {
   undo_stack.clear();
   undo_stack.reserve((num64_blocks + 3) * total_cells / 10);
   stack_checkpoints.clear();
@@ -199,7 +199,7 @@ void WFC::initializeUndoStack() {
 
 /* Bake the neighbour indexes for each cell to avoid recalculating them
  * during propagation */
-void WFC::bakeNeighbourIndexes() {
+void WFCCore::bakeNeighbourIndexes() {
   neighbour_indexes.resize(total_cells * NUM_DIRECTIONS_2D);
   for (size_t cell_index = 0; cell_index < total_cells; cell_index++) {
     size_t x = cell_index % output_width;
@@ -224,7 +224,7 @@ void WFC::bakeNeighbourIndexes() {
 // Use only the patterns that are at the boundaries of the input image to
 // restrict the patterns that can be placed at the boundaries of the output
 // image
-void WFC::applyBoundaryConditions() {
+void WFCCore::applyBoundaryConditions() {
   // TOP and BOTTOM ROWS
   std::vector<size_t> y_indexes = {0, output_height - 1};
   std::vector<size_t> directions = {Directions::UP, Directions::DOWN};
@@ -256,7 +256,7 @@ void WFC::applyBoundaryConditions() {
   }
 }
 
-size_t WFC::chooseNextCellScanline(size_t previous_cell_index) {
+size_t WFCCore::chooseNextCellScanline(size_t previous_cell_index) {
   if (previous_cell_index == total_cells - 1) {
     scan_direction = -1;    // Change direction to backward
     return start_index - 1; // Now go backwards from start_index - 1 to 0
@@ -264,7 +264,7 @@ size_t WFC::chooseNextCellScanline(size_t previous_cell_index) {
   return previous_cell_index + scan_direction;
 }
 
-size_t WFC::chooseNextCellEntropy() {
+size_t WFCCore::chooseNextCellEntropy() {
   size_t next_cell_index = SIZE_MAX;
   double min_entropy = std::numeric_limits<double>::max();
   for (size_t block_index = 0; block_index < collapsed_mask.size();
@@ -288,7 +288,7 @@ size_t WFC::chooseNextCellEntropy() {
   return next_cell_index;
 }
 
-void WFC::collapsePatternAtCell(size_t cell_index) {
+void WFCCore::collapsePatternAtCell(size_t cell_index) {
   if (is_cell_collapsed[cell_index]) {
     return; // Cell is already collapsed
   }
@@ -333,7 +333,7 @@ void WFC::collapsePatternAtCell(size_t cell_index) {
   collapsed_mask[cell_index >> 6] &= ~(1ULL << (cell_index & 63));
 }
 
-std::span<const pattern_id_t> WFC::readPatternsAtCell(size_t cell_index) {
+std::span<const pattern_id_t> WFCCore::readPatternsAtCell(size_t cell_index) {
   if (is_cell_collapsed[cell_index]) {
     return {&collapsed_patterns[cell_index], 1};
   }
@@ -359,7 +359,7 @@ std::span<const pattern_id_t> WFC::readPatternsAtCell(size_t cell_index) {
           temp_buffers.cell_pattern_ids.size()};
 }
 
-uint8_t WFC::propagateConstraints(size_t cell_index) {
+uint8_t WFCCore::propagateConstraints(size_t cell_index) {
   temp_buffers.current_version++;
   temp_buffers.current_cell_wave.clear();
   temp_buffers.current_cell_wave.push_back(cell_index);
@@ -375,7 +375,7 @@ uint8_t WFC::propagateConstraints(size_t cell_index) {
   return no_contradictions;
 }
 
-uint8_t WFC::extendPropagationRange() {
+uint8_t WFCCore::extendPropagationRange() {
   temp_buffers.next_cell_wave.clear();
   for (size_t cell_index : temp_buffers.current_cell_wave) {
     // Restart version so it can be added back to the wave if needed
@@ -413,9 +413,8 @@ uint8_t WFC::extendPropagationRange() {
   return true;
 }
 
-std::pair<uint8_t, uint8_t>
-WFC::updateConstraintsOfNeighbour(std::span<const uint64_t> cell_constraints,
-                                  size_t neighbour_index) {
+std::pair<uint8_t, uint8_t> WFCCore::updateConstraintsOfNeighbour(
+    std::span<const uint64_t> cell_constraints, size_t neighbour_index) {
 
   if (is_cell_collapsed[neighbour_index]) {
     return {false, true}; // No need to update a collapsed cell
@@ -452,7 +451,7 @@ WFC::updateConstraintsOfNeighbour(std::span<const uint64_t> cell_constraints,
 }
 
 // The constraints a cell applies to its neighbours
-std::span<const uint64_t> WFC::getConstraintsFromCell(size_t cell_index) {
+std::span<const uint64_t> WFCCore::getConstraintsFromCell(size_t cell_index) {
   if (is_cell_collapsed[cell_index]) {
     pattern_id_t collapsed_pattern_id = collapsed_patterns[cell_index];
     return adjacent_data.getConstraintsFromPattern(collapsed_pattern_id);
@@ -484,7 +483,7 @@ std::span<const uint64_t> WFC::getConstraintsFromCell(size_t cell_index) {
           temp_buffers.constraints_from_cell.size()};
 }
 
-void WFC::saveSnapshot(size_t current_cell_index) {
+void WFCCore::saveSnapshot(size_t current_cell_index) {
   failed_snapshots = 0;
   stack_checkpoints.push_back(stack_counter);
   num_collapsed_cells_at_snapshot.push_back(num_collapsed_cells);
@@ -496,7 +495,7 @@ void WFC::saveSnapshot(size_t current_cell_index) {
   ++total_snapshots;
 }
 
-size_t WFC::restoreSnapshot() {
+size_t WFCCore::restoreSnapshot() {
   stack_counter = stack_checkpoints.back();
   size_t cell_index = 0;
   size_t stride = num64_blocks + 3;
@@ -537,7 +536,7 @@ size_t WFC::restoreSnapshot() {
   return cell_index;
 }
 
-size_t WFC::backTrackToPreviousSnapshot() {
+size_t WFCCore::backTrackToPreviousSnapshot() {
   ++failed_snapshots;
   --total_snapshots;
   if (total_snapshots == 0 || failed_snapshots >= max_snapshots) {
@@ -555,7 +554,7 @@ size_t WFC::backTrackToPreviousSnapshot() {
   return restoreSnapshot();
 }
 
-void WFC::pushCellToUndoStack(size_t cell_idx) {
+void WFCCore::pushCellToUndoStack(size_t cell_idx) {
   // Order of data starting from end:
   // [Index][WeightSum][WLogW][Block0][Block1]...
   undo_stack.push_back(static_cast<uint64_t>(cell_idx));
