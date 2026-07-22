@@ -13,7 +13,7 @@ OverlappingPatterns::OverlappingPatterns(const SpriteHolder &sprite, int N) {
   mapIdsToPixels(sprite);
   countPatterns();
   findBoundaryPatterns();
-  populateAdjacentData();
+  generateAdjacentData();
 }
 
 void OverlappingPatterns::computePatternHashes(const SpriteHolder &sprite,
@@ -101,39 +101,6 @@ void OverlappingPatterns::countPatterns() {
   }
 }
 
-// TODO: for now we do not use rotations, mirroring, wrapping, or any other
-// pattern augmentation
-void OverlappingPatterns::populateAdjacentData() {
-  // DISCOVERY PHASE: look for adjacent patterns in the grid and count their
-  // frequencies
-  std::vector<std::unordered_map<pattern_id_t, uint64_t>> adjacent_patterns(
-      hashes_to_ids.size() * NUM_DIRECTIONS_2D);
-  for (size_t y = 0; y < height; ++y) {
-    for (size_t x = 0; x < width; ++x) {
-      if (x > 0) {
-        pattern_id_t left_id = grid_pattern_ids[y * width + (x - 1)];
-        pattern_id_t right_id = grid_pattern_ids[y * width + x];
-        ++adjacent_patterns[left_id * NUM_DIRECTIONS_2D + Directions::RIGHT]
-                           [right_id];
-        ++adjacent_patterns[right_id * NUM_DIRECTIONS_2D + Directions::LEFT]
-                           [left_id];
-      }
-      if (y < height - 1) {
-        // Image reads from top to bottom, so the pattern below is at y+1
-        size_t bottom_id = grid_pattern_ids[(y + 1) * width + x];
-        size_t top_id = grid_pattern_ids[y * width + x];
-        ++adjacent_patterns[bottom_id * NUM_DIRECTIONS_2D + Directions::DOWN]
-                           [top_id];
-        ++adjacent_patterns[top_id * NUM_DIRECTIONS_2D + Directions::UP]
-                           [bottom_id];
-      }
-    }
-  }
-
-  adjacent_data = AdjacencyData(adjacent_patterns, pattern_frequencies,
-                                patterns_at_boundaries);
-}
-
 void OverlappingPatterns::findBoundaryPatterns() {
   size_t num64_blocks = (hashes_to_ids.size() + 63) / 64;
   patterns_at_boundaries.clear();
@@ -189,4 +156,37 @@ std::vector<uint8_t> OverlappingPatterns::convertIdsToPixels(
     }
   }
   return output_pixels;
+}
+
+// TODO: for now we do not use rotations, mirroring, wrapping, or any other
+// pattern augmentation
+AdjacencyData OverlappingPatterns::generateAdjacentData() const {
+  // DISCOVERY PHASE: look for adjacent patterns in the grid and count their
+  // frequencies
+  std::vector<std::unordered_map<pattern_id_t, uint64_t>> adjacent_patterns(
+      hashes_to_ids.size() * NUM_DIRECTIONS_2D);
+  for (size_t y = 0; y < height; ++y) {
+    for (size_t x = 0; x < width; ++x) {
+      if (x > 0) {
+        pattern_id_t left_id = grid_pattern_ids[y * width + (x - 1)];
+        pattern_id_t right_id = grid_pattern_ids[y * width + x];
+        ++adjacent_patterns[left_id * NUM_DIRECTIONS_2D + Directions::RIGHT]
+                           [right_id];
+        ++adjacent_patterns[right_id * NUM_DIRECTIONS_2D + Directions::LEFT]
+                           [left_id];
+      }
+      if (y < height - 1) {
+        // Image reads from top to bottom, so the pattern below is at y+1
+        size_t bottom_id = grid_pattern_ids[(y + 1) * width + x];
+        size_t top_id = grid_pattern_ids[y * width + x];
+        ++adjacent_patterns[bottom_id * NUM_DIRECTIONS_2D + Directions::DOWN]
+                           [top_id];
+        ++adjacent_patterns[top_id * NUM_DIRECTIONS_2D + Directions::UP]
+                           [bottom_id];
+      }
+    }
+  }
+
+  return AdjacencyData(adjacent_patterns, pattern_frequencies,
+                       patterns_at_boundaries);
 }

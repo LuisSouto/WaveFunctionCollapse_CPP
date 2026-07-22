@@ -1,6 +1,5 @@
 #include <adjacency_data.h>
 #include <math.h>
-#include <utility>
 #include <wfc_globals.h>
 
 AdjacencyData::AdjacencyData(
@@ -14,7 +13,8 @@ AdjacencyData::AdjacencyData(
 
   neighbour_ids.clear();
   neighbour_ids.resize(adjacent_patterns.size() * num64_blocks, 0);
-  this->pattern_frequencies = std::move(pattern_frequencies);
+  this->pattern_frequencies = std::vector<uint64_t>(pattern_frequencies.begin(),
+                                                    pattern_frequencies.end());
   pattern_freq_times_log_freqs.resize(this->pattern_frequencies.size(), 0);
   for (size_t i = 0; i < this->pattern_frequencies.size(); i++) {
     uint64_t freq = this->pattern_frequencies[i];
@@ -24,7 +24,8 @@ AdjacencyData::AdjacencyData(
     }
   }
 
-  this->patterns_at_boundaries = std::move(patterns_at_boundaries);
+  this->patterns_at_boundaries = std::vector<uint64_t>(
+      patterns_at_boundaries.begin(), patterns_at_boundaries.end());
 
   pattern_offsets.reserve(num_patterns);
   for (size_t pattern_id = 0; pattern_id < num_patterns; pattern_id++) {
