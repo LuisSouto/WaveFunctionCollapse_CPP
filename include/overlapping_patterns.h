@@ -4,6 +4,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <numeric>
 #include <sprite_holder.h>
 #include <sys/types.h>
 #include <unordered_map>
@@ -39,7 +40,16 @@ public:
 
   AdjacencyData getAdjacencyData() const { return generateAdjacentData(); }
 
+  size_t getNumPatterns() const { return hashes_to_ids.size(); }
+
   std::vector<uint8_t>
   convertIdsToPixels(std::span<const pattern_id_t> pattern_ids, size_t width,
                      size_t height) const;
+
+  std::vector<uint8_t> getInputPixelPatterns() const {
+    std::vector<pattern_id_t> ids(hashes_to_ids.size());
+    std::iota(ids.begin(), ids.end(), 0);
+
+    return convertIdsToPixels(ids, ids.size(), 1);
+  }
 };
