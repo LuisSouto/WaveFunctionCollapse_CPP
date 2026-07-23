@@ -103,5 +103,5 @@ public:
 
   void collapseSelectedCell(size_t cell_index, pattern_id_t pattern_id);
   void undoLastCollapse();
-  std::vector<bool> getValidCellsForPattern(pattern_id_t pattern_id);
+  std::vector<uint8_t> getValidCellsForPattern(pattern_id_t pattern_id);
 };
