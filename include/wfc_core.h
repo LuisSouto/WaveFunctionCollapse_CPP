@@ -44,8 +44,6 @@ private:
   uint32_t max_total_failures = 5000;
   int scan_direction = 1; // 1 for forward, -1 for backward
 
-  void prepareWFCSolver(size_t output_width, size_t output_height, bool force_boundary_patterns);
-
   void initializeGrid(size_t output_width, size_t output_height);
 
   void initializeTempBuffers();
@@ -95,6 +93,8 @@ public:
 
   WFCCore(const AdjacencyData &adjacent_data, uint64_t seed)
       : adjacent_data(adjacent_data), rng(seed) {};
+
+  void prepareWFCSolver(size_t output_width, size_t output_height, bool force_boundary_patterns);
 
   std::span<const pattern_id_t>
   solve(size_t output_width, size_t output_height, size_t start_index,
