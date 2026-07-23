@@ -155,6 +155,19 @@ OverlappingPatterns::convertIdsToPixels(std::span<const pattern_id_t> pattern_id
   return output_pixels;
 }
 
+std::vector<uint8_t> OverlappingPatterns::getInputPixelPatterns() const {
+  size_t num_patterns = hashes_to_ids.size();
+  size_t pattern_size = N * N * channels;
+
+  std::vector<uint8_t> output_pixels;
+  output_pixels.resize(num_patterns * pattern_size);
+  for (size_t i = 0; i < num_patterns; i++) {
+    const uint8_t *pixel_data = &ids_to_pixels[i * pattern_size];
+    std::memcpy(&output_pixels[i * pattern_size], pixel_data, pattern_size);
+  }
+  return output_pixels;
+}
+
 // TODO: for now we do not use rotations, mirroring, wrapping, or any other
 // pattern augmentation
 AdjacencyData OverlappingPatterns::generateAdjacentData() const {

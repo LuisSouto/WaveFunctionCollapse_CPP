@@ -45,10 +45,5 @@ public:
   std::vector<uint8_t> convertIdsToPixels(std::span<const pattern_id_t> pattern_ids, size_t width,
                                           size_t height) const;
 
-  std::vector<uint8_t> getInputPixelPatterns() const {
-    std::vector<pattern_id_t> ids(hashes_to_ids.size());
-    std::iota(ids.begin(), ids.end(), 0);
-
-    return convertIdsToPixels(ids, ids.size(), 1);
-  }
+  std::vector<uint8_t> getInputPixelPatterns() const;
 };
