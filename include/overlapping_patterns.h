@@ -21,13 +21,13 @@ private:
   std::vector<pattern_id_t> grid_pattern_ids;
   std::vector<uint8_t> ids_to_pixels;
   std::unordered_map<pattern_hash_t, pattern_id_t> hashes_to_ids;
-  WFCSettings settings;
   size_t N;
   size_t channels;
   size_t width;
   size_t height;
   size_t total_pixels;
-  void computePatternHashes(const SpriteHolder &sprite, size_t N);
+  void computePatternHashes(const SpriteHolder &sprite, size_t N,
+                            BoundaryCondition boundary_condition);
   void mapHashesToIds();
   void computeGridIds();
   void findBoundaryPatterns();
@@ -36,15 +36,14 @@ private:
   AdjacencyData generateAdjacentData() const;
 
 public:
-  OverlappingPatterns(const SpriteHolder &sprite, int N);
+  OverlappingPatterns(const SpriteHolder &sprite, int N, BoundaryCondition boundary_condition);
 
   AdjacencyData getAdjacencyData() const { return generateAdjacentData(); }
 
   size_t getNumPatterns() const { return hashes_to_ids.size(); }
 
-  std::vector<uint8_t>
-  convertIdsToPixels(std::span<const pattern_id_t> pattern_ids, size_t width,
-                     size_t height) const;
+  std::vector<uint8_t> convertIdsToPixels(std::span<const pattern_id_t> pattern_ids, size_t width,
+                                          size_t height) const;
 
   std::vector<uint8_t> getInputPixelPatterns() const {
     std::vector<pattern_id_t> ids(hashes_to_ids.size());
