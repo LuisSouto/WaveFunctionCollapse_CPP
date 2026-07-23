@@ -58,10 +58,10 @@ void WFCCore::undoLastCollapse() {
   restoreSnapshot();
 }
 
-std::vector<size_t> WFCCore::getValidCellsForPattern(pattern_id_t pattern_id) {
+std::vector<bool> WFCCore::getValidCellsForPattern(pattern_id_t pattern_id) {
   size_t pattern_block = pattern_id >> 6;
   uint64_t pattern_mask = (1ULL << (pattern_id & 63));
-  std::vector<size_t> valid_cells;
+  std::vector<bool> valid_cells(total_cells, false);
   for (size_t block_index = 0; block_index < collapsed_mask.size(); ++block_index) {
     uint64_t collapsed_block = collapsed_mask[block_index];
     if (collapsed_block == 0ULL) {
@@ -72,7 +72,7 @@ std::vector<size_t> WFCCore::getValidCellsForPattern(pattern_id_t pattern_id) {
       size_t cell_index = base_cell_index + std::countr_zero(collapsed_block);
       collapsed_block &= (collapsed_block - 1);
       if (grid[cell_index * num64_blocks + pattern_block] & pattern_mask) {
-        valid_cells.push_back(cell_index);
+        valid_cells[cell_index] = true;
       }
     }
   }
