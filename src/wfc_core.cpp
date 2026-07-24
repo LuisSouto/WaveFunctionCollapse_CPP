@@ -58,10 +58,11 @@ void WFCCore::undoLastCollapse() {
   restoreSnapshot();
 }
 
-std::vector<uint8_t> WFCCore::getValidCellsForPattern(pattern_id_t pattern_id) {
+std::vector<uint8_t> WFCCore::getValidCellsForPattern(pattern_id_t pattern_id, size_t output_width,
+                                                      size_t output_height) {
   size_t pattern_block = pattern_id >> 6;
   uint64_t pattern_mask = (1ULL << (pattern_id & 63));
-  std::vector<uint8_t> valid_cells(total_cells, 0);
+  std::vector<uint8_t> valid_cells(output_width * output_height, 0);
   for (size_t block_index = 0; block_index < collapsed_mask.size(); ++block_index) {
     uint64_t collapsed_block = collapsed_mask[block_index];
     if (collapsed_block == 0ULL) {
@@ -70,9 +71,11 @@ std::vector<uint8_t> WFCCore::getValidCellsForPattern(pattern_id_t pattern_id) {
     size_t base_cell_index = block_index << 6;
     while (collapsed_block != 0) {
       size_t cell_index = base_cell_index + std::countr_zero(collapsed_block);
+      size_t cell_x = cell_index % grid_width;
+      size_t cell_y = cell_index / grid_width;
       collapsed_block &= (collapsed_block - 1);
       if (grid[cell_index * num64_blocks + pattern_block] & pattern_mask) {
-        valid_cells[cell_index] = 255;
+        valid_cells[cell_x + cell_y * output_width] = 255;
       }
     }
   }
@@ -145,8 +148,8 @@ bool WFCCore::generateCollapsedGrid(size_t start_index,
 }
 
 void WFCCore::initializeGrid(size_t output_width, size_t output_height) {
-  this->output_width = output_width;
-  this->output_height = output_height;
+  this->grid_width = output_width;
+  this->grid_height = output_height;
 
   // First use 1's to mark every pattern as possible
   grid.assign(total_cells * num64_blocks, ~0ULL);
@@ -256,20 +259,20 @@ void WFCCore::initializeUndoStack() {
 void WFCCore::bakeNeighbourIndexes() {
   neighbour_indexes.resize(total_cells * NUM_DIRECTIONS_2D);
   for (size_t cell_index = 0; cell_index < total_cells; cell_index++) {
-    size_t x = cell_index % output_width;
-    size_t y = cell_index / output_width;
+    size_t x = cell_index % grid_width;
+    size_t y = cell_index / grid_width;
     for (size_t i = 0; i < NUM_DIRECTIONS_2D; i++) {
       int dx = DX[i];
       int dy = DY[i];
-      if (y + dy < 0 || y + dy >= output_height) {
+      if (y + dy < 0 || y + dy >= grid_height) {
         neighbour_indexes[cell_index * NUM_DIRECTIONS_2D + i] = SIZE_MAX;
         continue; // Out of bounds
       }
-      if (x + dx < 0 || x + dx >= output_width) {
+      if (x + dx < 0 || x + dx >= grid_width) {
         neighbour_indexes[cell_index * NUM_DIRECTIONS_2D + i] = SIZE_MAX;
         continue; // Out of bounds
       }
-      size_t neighbour_index = cell_index + dy * output_width + dx;
+      size_t neighbour_index = cell_index + dy * grid_width + dx;
       neighbour_indexes[cell_index * NUM_DIRECTIONS_2D + i] = neighbour_index;
     }
   }
@@ -280,32 +283,32 @@ void WFCCore::bakeNeighbourIndexes() {
 // image
 void WFCCore::applyBoundaryConditions() {
   // TOP and BOTTOM ROWS
-  std::vector<size_t> y_indexes = {0, output_height - 1};
+  std::vector<size_t> y_indexes = {0, grid_height - 1};
   std::vector<size_t> directions = {Directions::UP, Directions::DOWN};
   for (size_t i = 0; i < 2; ++i) {
     size_t y = y_indexes[i];
     std::span<const uint64_t> boundary_patterns =
         adjacent_data.getPatternsAtBoundaries(directions[i]);
-    for (size_t x = 0; x < output_width; x++) {
+    for (size_t x = 0; x < grid_width; x++) {
       for (size_t j = 0; j < num64_blocks; j++) {
-        grid[(y * output_width + x) * num64_blocks + j] &= boundary_patterns[j];
+        grid[(y * grid_width + x) * num64_blocks + j] &= boundary_patterns[j];
       }
-      propagateConstraints(y * output_width + x);
+      propagateConstraints(y * grid_width + x);
     }
   }
 
   // LEFT and RIGHT COLUMNS
-  std::vector<size_t> x_indexes = {0, output_width - 1};
+  std::vector<size_t> x_indexes = {0, grid_width - 1};
   directions = {Directions::LEFT, Directions::RIGHT};
   for (size_t i = 0; i < 2; ++i) {
     size_t x = x_indexes[i];
     std::span<const uint64_t> boundary_patterns =
         adjacent_data.getPatternsAtBoundaries(directions[i]);
-    for (size_t y = 1; y < output_height - 1; ++y) {
+    for (size_t y = 1; y < grid_height - 1; ++y) {
       for (size_t j = 0; j < num64_blocks; ++j) {
-        grid[(y * output_width + x) * num64_blocks + j] &= boundary_patterns[j];
+        grid[(y * grid_width + x) * num64_blocks + j] &= boundary_patterns[j];
       }
-      propagateConstraints(y * output_width + x);
+      propagateConstraints(y * grid_width + x);
     }
   }
 }

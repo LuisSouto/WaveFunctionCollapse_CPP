@@ -32,8 +32,8 @@ private:
   std::uniform_real_distribution<> dist{0.0, 1.0};
   uint64_t num_collapsed_cells = 0;
   uint64_t stack_counter = 0;
-  size_t output_width;
-  size_t output_height;
+  size_t grid_width;
+  size_t grid_height;
   size_t start_index;
   size_t total_cells;
   size_t num64_blocks;
@@ -103,5 +103,6 @@ public:
 
   void collapseSelectedCell(size_t cell_index, pattern_id_t pattern_id);
   void undoLastCollapse();
-  std::vector<uint8_t> getValidCellsForPattern(pattern_id_t pattern_id);
+  std::vector<uint8_t> getValidCellsForPattern(pattern_id_t pattern_id, size_t output_width,
+                                               size_t output_height);
 };
