@@ -40,6 +40,7 @@ bool WFCCore::collapseSelectedCell(size_t cell_index, pattern_id_t pattern_id) {
   bool no_contradictions = propagateConstraints(cell_index);
   if (!no_contradictions) {
     restoreSnapshot();
+    propagateConstraints(cell_index);
   }
 
   return no_contradictions;
@@ -575,10 +576,10 @@ size_t WFCCore::restoreSnapshot() {
   }
   // Remove the patterns that were collapsed in the snapshot
   cell_index = stack_starting_cell_indexes.back();
-  // pattern_id_t collapsed_pattern_id = collapsed_patterns[cell_index];
-  // size_t target_block = collapsed_pattern_id / 64;
-  // int target_bit = collapsed_pattern_id % 64;
-  // grid[cell_index * num64_blocks + target_block] &= ~(1ULL << target_bit);
+  pattern_id_t collapsed_pattern_id = collapsed_patterns[cell_index];
+  size_t target_block = collapsed_pattern_id / 64;
+  int target_bit = collapsed_pattern_id % 64;
+  grid[cell_index * num64_blocks + target_block] &= ~(1ULL << target_bit);
 
   undo_stack.resize(stack_counter * stride);
   num_collapsed_cells = num_collapsed_cells_at_snapshot.back();
