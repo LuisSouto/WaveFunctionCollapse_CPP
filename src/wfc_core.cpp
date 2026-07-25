@@ -30,9 +30,9 @@ WFCCore::solve(size_t output_width, size_t output_height, size_t start_index,
   return {collapsed_patterns.data(), collapsed_patterns.size()};
 }
 
-void WFCCore::collapseSelectedCell(size_t cell_index, pattern_id_t pattern_id) {
+bool WFCCore::collapseSelectedCell(size_t cell_index, pattern_id_t pattern_id) {
   if (is_cell_collapsed[cell_index]) {
-    return;
+    return false;
   }
   saveSnapshot(cell_index);
   collapsePatternAtCell(cell_index, pattern_id);
@@ -41,6 +41,8 @@ void WFCCore::collapseSelectedCell(size_t cell_index, pattern_id_t pattern_id) {
   if (!no_contradictions) {
     restoreSnapshot();
   }
+
+  return no_contradictions;
 }
 
 void WFCCore::undoLastCollapse() {

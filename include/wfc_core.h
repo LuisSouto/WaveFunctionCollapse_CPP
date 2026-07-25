@@ -107,7 +107,7 @@ public:
                                       CellSelectionStrategy cell_selection_strategy,
                                       const std::unordered_map<size_t, pattern_id_t> &fixed_cells);
 
-  void collapseSelectedCell(size_t cell_index, pattern_id_t pattern_id);
+  bool collapseSelectedCell(size_t cell_index, pattern_id_t pattern_id);
   void undoLastCollapse();
   std::vector<uint8_t> getValidCellsForPattern(pattern_id_t pattern_id, size_t output_width,
                                                size_t output_height);
