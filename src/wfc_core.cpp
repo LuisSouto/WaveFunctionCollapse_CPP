@@ -17,9 +17,7 @@ std::span<const pattern_id_t> WFCCore::solve(size_t output_width, size_t output_
 		size_t start_index, bool force_boundary_patterns,
 		CellSelectionStrategy cell_selection_strategy,
 		const std::unordered_map<size_t, pattern_id_t> &fixed_cells) {
-	if (grid.empty()) {
-		startSolver(output_width, output_height, force_boundary_patterns, fixed_cells);
-	}
+	startSolver(output_width, output_height, force_boundary_patterns, fixed_cells);
 	bool success = generateCollapsedGrid(start_index, cell_selection_strategy);
 
 	while (!success) {
@@ -91,7 +89,6 @@ void WFCCore::startSolver(size_t output_width, size_t output_height, bool force_
 
 	// Initialize grid and other variables
 	initializeGrid(output_width, output_height);
-	collapsedFixedCells(fixed_cells);
 	bakeNeighbourIndexes();
 	initializeTempBuffers();
 	num_collapsed_cells = 0;
@@ -105,6 +102,7 @@ void WFCCore::startSolver(size_t output_width, size_t output_height, bool force_
 
 	initializeEntropyData();
 	initializeUndoStack();
+	collapsedFixedCells(fixed_cells);
 }
 
 void WFCCore::collapsedFixedCells(const std::unordered_map<size_t, pattern_id_t> &fixed_cells) {
