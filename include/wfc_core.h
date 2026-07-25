@@ -6,6 +6,7 @@
 #include <entropy.h>
 #include <random>
 #include <span>
+#include <unordered_map>
 #include <vector>
 #include <wfc_settings.h>
 #include <wfc_temp_buffers.h>
@@ -46,6 +47,8 @@ private:
 
   void initializeGrid(size_t output_width, size_t output_height);
 
+  void collapsedFixedCells(const std::unordered_map<size_t, pattern_id_t> &fixed_cells);
+
   void initializeTempBuffers();
 
   void initializeEntropyData();
@@ -64,7 +67,9 @@ private:
 
   std::span<const pattern_id_t> readPatternsAtCell(size_t cell_index);
 
-  void collapsePatternAtCell(size_t cell_index);
+  void collapsePatternAtCell(size_t cell_index, pattern_id_t pattern_id);
+
+  void collapseRandomPatternAtCell(size_t cell_index);
 
   uint8_t propagateConstraints(size_t cell_index);
 
@@ -79,7 +84,7 @@ private:
 
   size_t restoreSnapshot();
 
-  size_t backTrackToPreviousSnapshot();
+  size_t goToPreviousSnapshot();
 
   void pushCellToUndoStack(size_t cell_index);
 
@@ -94,12 +99,13 @@ public:
   WFCCore(const AdjacencyData &adjacent_data, uint64_t seed)
       : adjacent_data(adjacent_data), rng(seed) {};
 
-  void prepareWFCSolver(size_t output_width, size_t output_height, bool force_boundary_patterns);
+  void startSolver(size_t output_width, size_t output_height, bool force_boundary_patterns,
+                   const std::unordered_map<size_t, pattern_id_t> &fixed_cells);
 
-  std::span<const pattern_id_t>
-  solve(size_t output_width, size_t output_height, size_t start_index,
-        bool force_boundary_patterns = false,
-        CellSelectionStrategy cell_selection_strategy = CellSelectionStrategy::ENTROPY);
+  std::span<const pattern_id_t> solve(size_t output_width, size_t output_height, size_t start_index,
+                                      bool force_boundary_patterns,
+                                      CellSelectionStrategy cell_selection_strategy,
+                                      const std::unordered_map<size_t, pattern_id_t> &fixed_cells);
 
   void collapseSelectedCell(size_t cell_index, pattern_id_t pattern_id);
   void undoLastCollapse();

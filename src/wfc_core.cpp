@@ -13,15 +13,20 @@
 #include <wfc_globals.h>
 #include <wfc_typedefs.h>
 
-std::span<const pattern_id_t> WFCCore::solve(size_t output_width, size_t output_height,
-                                             size_t start_index, bool force_boundary_patterns,
-                                             CellSelectionStrategy cell_selection_strategy) {
-  prepareWFCSolver(output_width, output_height, force_boundary_patterns);
+std::span<const pattern_id_t>
+WFCCore::solve(size_t output_width, size_t output_height, size_t start_index,
+               bool force_boundary_patterns, CellSelectionStrategy cell_selection_strategy,
+               const std::unordered_map<size_t, pattern_id_t> &fixed_cells) {
+  if (grid.empty()) {
+    startSolver(output_width, output_height, force_boundary_patterns, fixed_cells);
+  }
   bool success = generateCollapsedGrid(start_index, cell_selection_strategy);
+
   while (!success) {
-    prepareWFCSolver(output_width, output_height, force_boundary_patterns);
+    startSolver(output_width, output_height, force_boundary_patterns, fixed_cells);
     success = generateCollapsedGrid(start_index, cell_selection_strategy);
   }
+
   return {collapsed_patterns.data(), collapsed_patterns.size()};
 }
 
@@ -29,21 +34,8 @@ void WFCCore::collapseSelectedCell(size_t cell_index, pattern_id_t pattern_id) {
   if (is_cell_collapsed[cell_index]) {
     return;
   }
-  pushCellToUndoStack(cell_index);
   saveSnapshot(cell_index);
-
-  size_t start_index = cell_index * num64_blocks;
-  for (size_t j = 0; j < num64_blocks; j++) {
-    grid[start_index + j] = 0;
-  }
-
-  size_t target_block = pattern_id >> 6;
-  size_t target_bit = pattern_id & 63;
-  grid[start_index + target_block] = (1ULL << target_bit);
-  num_collapsed_cells++;
-  is_cell_collapsed[cell_index] = 1;
-  collapsed_patterns[cell_index] = pattern_id;
-  collapsed_mask[cell_index >> 6] &= ~(1ULL << (cell_index & 63));
+  collapsePatternAtCell(cell_index, pattern_id);
 
   bool no_contradictions = propagateConstraints(cell_index);
   if (!no_contradictions) {
@@ -82,14 +74,15 @@ std::vector<uint8_t> WFCCore::getValidCellsForPattern(pattern_id_t pattern_id, s
   return valid_cells;
 }
 
-void WFCCore::prepareWFCSolver(size_t output_width, size_t output_height,
-                               bool force_boundary_patterns) {
+void WFCCore::startSolver(size_t output_width, size_t output_height, bool force_boundary_patterns,
+                          const std::unordered_map<size_t, pattern_id_t> &fixed_cells) {
   total_cells = output_width * output_height;
   num64_blocks = adjacent_data.getNum64Blocks();
   scan_direction = 1;
 
   // Initialize grid and other variables
   initializeGrid(output_width, output_height);
+  collapsedFixedCells(fixed_cells);
   bakeNeighbourIndexes();
   initializeTempBuffers();
   num_collapsed_cells = 0;
@@ -103,6 +96,12 @@ void WFCCore::prepareWFCSolver(size_t output_width, size_t output_height,
 
   initializeEntropyData();
   initializeUndoStack();
+}
+
+void WFCCore::collapsedFixedCells(const std::unordered_map<size_t, pattern_id_t> &fixed_cells) {
+  for (const auto &[cell_index, pattern_id] : fixed_cells) {
+    collapseSelectedCell(cell_index, pattern_id);
+  }
 }
 
 bool WFCCore::generateCollapsedGrid(size_t start_index,
@@ -125,7 +124,7 @@ bool WFCCore::generateCollapsedGrid(size_t start_index,
       snapshot_interval = 0;
       saveSnapshot(current_cell_index);
     }
-    collapsePatternAtCell(current_cell_index);
+    collapseRandomPatternAtCell(current_cell_index);
     no_contradictions = propagateConstraints(current_cell_index);
     ++snapshot_interval;
     if (!no_contradictions) {
@@ -344,11 +343,10 @@ size_t WFCCore::chooseNextCellEntropy() {
   return next_cell_index;
 }
 
-void WFCCore::collapsePatternAtCell(size_t cell_index) {
+void WFCCore::collapseRandomPatternAtCell(size_t cell_index) {
   if (is_cell_collapsed[cell_index]) {
-    return; // Cell is already collapsed
+    return;
   }
-  pushCellToUndoStack(cell_index);
 
   std::span<const pattern_id_t> possible_patterns = readPatternsAtCell(cell_index);
   pattern_id_t selected_pattern_id = possible_patterns[0];
@@ -373,17 +371,26 @@ void WFCCore::collapsePatternAtCell(size_t cell_index) {
     }
   }
 
+  collapsePatternAtCell(cell_index, selected_pattern_id);
+}
+
+void WFCCore::collapsePatternAtCell(size_t cell_index, pattern_id_t pattern_id) {
+  if (is_cell_collapsed[cell_index]) {
+    return;
+  }
+  pushCellToUndoStack(cell_index);
+
   size_t start_index = cell_index * num64_blocks;
   for (size_t j = 0; j < num64_blocks; j++) {
     grid[start_index + j] = 0;
   }
 
-  size_t target_block = selected_pattern_id >> 6;
-  size_t target_bit = selected_pattern_id & 63;
+  size_t target_block = pattern_id >> 6;
+  size_t target_bit = pattern_id & 63;
   grid[start_index + target_block] = (1ULL << target_bit);
   num_collapsed_cells++;
   is_cell_collapsed[cell_index] = 1;
-  collapsed_patterns[cell_index] = selected_pattern_id;
+  collapsed_patterns[cell_index] = pattern_id;
   collapsed_mask[cell_index >> 6] &= ~(1ULL << (cell_index & 63));
 }
 
@@ -576,13 +583,13 @@ size_t WFCCore::restoreSnapshot() {
   ++consecutive_failures_at_snapshot.back();
   ++total_failures;
   if (consecutive_failures_at_snapshot.back() >= max_consecutive_failures) {
-    return backTrackToPreviousSnapshot();
+    return goToPreviousSnapshot();
   }
 
   return cell_index;
 }
 
-size_t WFCCore::backTrackToPreviousSnapshot() {
+size_t WFCCore::goToPreviousSnapshot() {
   ++failed_snapshots;
   --total_snapshots;
   if (total_snapshots == 0 || failed_snapshots >= max_snapshots) {
@@ -594,6 +601,7 @@ size_t WFCCore::backTrackToPreviousSnapshot() {
   stack_checkpoints.pop_back();
   num_collapsed_cells_at_snapshot.pop_back();
   stack_starting_cell_indexes.pop_back();
+  // If last snapshot was a total failure, add one failure to the previous snapshot
   if (!consecutive_failures_at_snapshot.empty()) {
     ++consecutive_failures_at_snapshot.back();
   }
