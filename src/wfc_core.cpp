@@ -13,16 +13,21 @@
 #include <span>
 #include <vector>
 
-std::span<const pattern_id_t> WFCCore::solve(size_t output_width, size_t output_height,
+std::span<const pattern_id_t> WFCCore::solve(size_t grid_width, size_t grid_height,
 		size_t start_index, bool force_boundary_patterns,
 		CellSelectionStrategy cell_selection_strategy,
 		const std::unordered_map<size_t, pattern_id_t> &fixed_cells) {
-	startSolver(output_width, output_height, force_boundary_patterns, fixed_cells);
-	bool success = generateCollapsedGrid(start_index, cell_selection_strategy);
+	startSolver(grid_width, grid_height, force_boundary_patterns, fixed_cells);
 
-	while (!success) {
-		startSolver(output_width, output_height, force_boundary_patterns, fixed_cells);
+	uint32_t num_restarts = 0;
+	bool success = generateCollapsedGrid(start_index, cell_selection_strategy);
+	while (!success && num_restarts < max_restarts) {
+		startSolver(grid_width, grid_height, force_boundary_patterns, fixed_cells);
 		success = generateCollapsedGrid(start_index, cell_selection_strategy);
+		++num_restarts;
+	}
+	if (!success) {
+		return {};
 	}
 
 	return { collapsed_patterns.data(), collapsed_patterns.size() };
@@ -57,6 +62,9 @@ void WFCCore::undoLastCollapse() {
 	restoreSnapshot();
 }
 
+// Return a grid of the desired dimensions where pixels that have been collapsed are marked as white
+// and pixels that have not been collapsed are marked as black. If the grid dimensions are smaller
+// than the output dimensions, the bottom and right edges of the output grid will be black.
 std::vector<uint8_t> WFCCore::getValidCellsForPattern(
 		pattern_id_t pattern_id, size_t output_width, size_t output_height) {
 	size_t pattern_block = pattern_id >> 6;
@@ -81,14 +89,14 @@ std::vector<uint8_t> WFCCore::getValidCellsForPattern(
 	return valid_cells;
 }
 
-void WFCCore::startSolver(size_t output_width, size_t output_height, bool force_boundary_patterns,
+void WFCCore::startSolver(size_t grid_width, size_t grid_height, bool force_boundary_patterns,
 		const std::unordered_map<size_t, pattern_id_t> &fixed_cells) {
-	total_cells = output_width * output_height;
+	total_cells = grid_width * grid_height;
 	num64_blocks = adjacent_data.getNum64Blocks();
 	scan_direction = 1;
 
 	// Initialize grid and other variables
-	initializeGrid(output_width, output_height);
+	initializeGrid(grid_width, grid_height);
 	bakeNeighbourIndexes();
 	initializeTempBuffers();
 	num_collapsed_cells = 0;
@@ -153,9 +161,9 @@ bool WFCCore::generateCollapsedGrid(
 	return true;
 }
 
-void WFCCore::initializeGrid(size_t output_width, size_t output_height) {
-	this->grid_width = output_width;
-	this->grid_height = output_height;
+void WFCCore::initializeGrid(size_t grid_width, size_t grid_height) {
+	this->grid_width = grid_width;
+	this->grid_height = grid_height;
 
 	// First use 1's to mark every pattern as possible
 	grid.assign(total_cells * num64_blocks, ~0ULL);
@@ -171,10 +179,10 @@ void WFCCore::initializeGrid(size_t output_width, size_t output_height) {
 	std::span<const uint64_t> exclusively_boundary_patterns =
 			adjacent_data.getExclusivelyBoundaryPatterns();
 
-	for (size_t y = 0; y < output_height; ++y) {
-		for (size_t x = 0; x < output_width; ++x) {
-			size_t cell_index = y * output_width + x;
-			if (y == 0 || y == output_height - 1 || x == 0 || x == output_width - 1) {
+	for (size_t y = 0; y < grid_height; ++y) {
+		for (size_t x = 0; x < grid_width; ++x) {
+			size_t cell_index = y * grid_width + x;
+			if (y == 0 || y == grid_height - 1 || x == 0 || x == grid_width - 1) {
 				grid[cell_index * num64_blocks + num64_blocks - 1] &= tail_mask;
 				continue; // Skip boundary cells
 			}

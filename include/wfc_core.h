@@ -43,6 +43,7 @@ private:
 	uint32_t total_snapshots = 0;
 	uint32_t total_failures = 0;
 	uint32_t max_total_failures = 5000;
+	uint32_t max_restarts = 100;
 	int scan_direction = 1; // 1 for forward, -1 for backward
 
 	void initializeGrid(size_t output_width, size_t output_height);
