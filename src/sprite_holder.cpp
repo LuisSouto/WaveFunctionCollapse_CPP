@@ -1,8 +1,9 @@
 #include <sprite_holder.h>
 
 /* Create a unique hash for each pixel in the image.*/
-// WARNING: this assumes RBG format, it will not work otherwise
 void SpriteHolder::computePixelHashes() {
+	// Note(Luis): Due to the way the hash is computed, this will overflow for images with
+	// more than 4 channels. Not really a problem for the intended use.
 	pixel_hashes.resize(num_pixels);
 	for (size_t i = 0; i < num_pixels; i++) {
 		pixel_hash_t pixel_hash = 0;

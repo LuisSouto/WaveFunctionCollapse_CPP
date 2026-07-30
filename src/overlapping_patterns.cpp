@@ -8,6 +8,11 @@
 
 OverlappingPatterns::OverlappingPatterns(
 		const SpriteHolder &sprite, int N, BoundaryCondition boundary_condition) {
+	// Input number with types of rotations
+	// Generate all requested grids as one single vector
+	// Store vector of sizes of each grid
+	// Some of the functions below would not need modification while others would require to loop
+	// over the list of grids plus some small modifications.
 	computePatternHashes(sprite, N, boundary_condition);
 	mapHashesToIds();
 	computeGridIds();

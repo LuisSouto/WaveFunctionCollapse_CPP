@@ -35,6 +35,10 @@ public:
 		assert(x < width && y < height && "Pixel coordinates out of bounds");
 		return pixel_hashes[y * width + x];
 	};
+	pixel_hash_t getPixelHash(size_t cell_index) const {
+		assert(cell_index < num_pixels && "Pixel coordinates out of bounds");
+		return pixel_hashes[cell_index];
+	};
 
 	const uint8_t *getPixelPointer(size_t x, size_t y) const {
 		assert(x < width && y < height && "Pixel coordinates out of bounds");

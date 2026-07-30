@@ -32,6 +32,7 @@ target_compile_options(WaveFunctionCollapse PRIVATE
     -g
     -march=native
     -fno-omit-frame-pointer
+    -fno-trapping-math
     -Wall
     -Wextra
     -Wpedantic
