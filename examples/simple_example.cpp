@@ -24,7 +24,7 @@ int main() {
   std::uniform_int_distribution<size_t> dist(0, adj_output_width * adj_output_height - 1);
 
   // Generate images
-  for (size_t i = 0; i < 100; i++) {
+  for (size_t i = 0; i < 500; i++) {
     collapsed_grid = wfc.solve(adj_output_width, adj_output_height, dist(rng), true,
                                CellSelectionStrategy::SCANLINE, {});
     std::vector<uint8_t> output_pixels = overlapping_patterns.convertIdsToPixels(
