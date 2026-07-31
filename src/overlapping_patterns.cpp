@@ -67,7 +67,7 @@ void OverlappingPatterns::computePatternHashes(const SpriteHolder &sprite, size_
             pattern_hash = hash_combine(pattern_hash, pixelHash);
           }
         }
-        grid_pattern_hashes[x + y * width + grid_size * t] = pattern_hash;
+        grid_pattern_hashes[transform_func(x, y, width, height) + grid_size * t] = pattern_hash;
       }
     }
   }
@@ -98,19 +98,16 @@ void OverlappingPatterns::mapIdsToPixels(const SpriteHolder &sprite) {
     for (size_t y = 0; y < height; ++y) {
       for (size_t x = 0; x < width; ++x) {
         size_t adj_x = x % sprite.getWidth();
-        pattern_hash_t pattern_hash = grid_pattern_hashes[x + y * width + grid_size * t];
+        pattern_hash_t pattern_hash =
+            grid_pattern_hashes[transform_func(x, y, width, height) + grid_size * t];
         if (hashes_to_ids[pattern_hash] == pattern_id) {
           size_t start_index = pattern_id * N * N * channels;
           for (size_t dy = 0; dy < N; ++dy) {
             size_t adj_y = (y + dy) % sprite.getHeight();
-            for (size_t dx = 0; dx < N; ++dx) {
-              adj_x = (x + dx) % sprite.getWidth();
-              for (size_t c = 0; c < channels; ++c) {
-                size_t pixel_index = (dy * N + dx) * channels + c;
-                ids_to_pixels[start_index + pixel_index] = sprite.getPixelValue(
-                    transform_func(adj_x, adj_y, sprite.getWidth(), sprite.getHeight()), c);
-              }
-            }
+            const uint8_t *pixel_row = sprite.getPixelPointer(
+                transform_func(adj_x, adj_y, sprite.getWidth(), sprite.getHeight()));
+            uint8_t *pixel_destination = &ids_to_pixels[start_index + dy * N * channels];
+            std::copy(pixel_row, pixel_row + N * channels, pixel_destination);
           }
           ++pattern_id;
         }
@@ -135,6 +132,7 @@ void OverlappingPatterns::findBoundaryPatterns() {
   for (size_t t = 0; t < transform_indexes.size(); ++t) {
     size_t transform_index = transform_indexes[t];
     TransformedIndex transform_func = all_transforms[transform_index];
+
     // TOP and BOTTOM ROWS
     std::vector<size_t> y_indexes = {0, height - 1};
     std::vector<size_t> start_indexes = {
@@ -144,7 +142,8 @@ void OverlappingPatterns::findBoundaryPatterns() {
       size_t y = y_indexes[i];
       size_t start_index = start_indexes[i];
       for (size_t x = 0; x < width; x++) {
-        pattern_id_t pattern_id = grid_pattern_ids[x + y * width + grid_size * t];
+        pattern_id_t pattern_id =
+            grid_pattern_ids[transform_func(x, y, width, height) + grid_size * t];
         size_t block_index = pattern_id / 64;
         size_t bit_index = pattern_id % 64;
         patterns_at_boundaries[start_index + block_index] |= (1ULL << bit_index);
@@ -159,7 +158,8 @@ void OverlappingPatterns::findBoundaryPatterns() {
       size_t x = x_indexes[i];
       size_t start_index = start_indexes[i];
       for (size_t y = 1; y < height - 1; ++y) {
-        pattern_id_t pattern_id = grid_pattern_ids[x + y * width + grid_size * t];
+        pattern_id_t pattern_id =
+            grid_pattern_ids[transform_func(x, y, width, height) + grid_size * t];
         size_t block_index = pattern_id / 64;
         size_t bit_index = pattern_id % 64;
         patterns_at_boundaries[start_index + block_index] |= (1ULL << bit_index);
@@ -215,8 +215,10 @@ AdjacencyData OverlappingPatterns::generateAdjacentData() const {
     for (size_t y = 0; y < height; ++y) {
       for (size_t x = 0; x < width; ++x) {
         if (x > 0) {
-          pattern_id_t left_id = grid_pattern_ids[x - 1 + y * width + grid_size * t];
-          pattern_id_t right_id = grid_pattern_ids[x + y * width + grid_size * t];
+          pattern_id_t left_id =
+              grid_pattern_ids[transform_func(x - 1, y, width, height) + grid_size * t];
+          pattern_id_t right_id =
+              grid_pattern_ids[transform_func(x, y, width, height) + grid_size * t];
           ++adjacent_patterns[left_id * NUM_DIRECTIONS_2D +
                               rotateDirectionClockwise(Directions::RIGHT, transform_index)]
                              [right_id];
@@ -225,8 +227,9 @@ AdjacencyData OverlappingPatterns::generateAdjacentData() const {
         }
         if (y < height - 1) {
           // Image reads from top to bottom, so the pattern below is at y+1
-          size_t bottom_id = grid_pattern_ids[x + (y + 1) * width + grid_size * t];
-          size_t top_id = grid_pattern_ids[x + y * width + grid_size * t];
+          size_t bottom_id =
+              grid_pattern_ids[transform_func(x, y + 1, width, height) + grid_size * t];
+          size_t top_id = grid_pattern_ids[transform_func(x, y, width, height) + grid_size * t];
           ++adjacent_patterns[bottom_id * NUM_DIRECTIONS_2D +
                               rotateDirectionClockwise(Directions::DOWN, transform_index)][top_id];
           ++adjacent_patterns[top_id * NUM_DIRECTIONS_2D +

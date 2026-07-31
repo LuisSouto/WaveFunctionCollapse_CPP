@@ -1,5 +1,4 @@
 #include <chrono>
-#include <directions.h>
 #include <image_transforms.h>
 #include <iostream>
 #include <overlapping_patterns.h>
@@ -14,7 +13,7 @@ int main() {
   SpriteHolder sprite = SpriteReader::loadFromPng(filename.c_str(), STBI_rgb);
   size_t N = 2;
   OverlappingPatterns overlapping_patterns(sprite, N, BoundaryCondition::NONE,
-                                           ImageTransform::ROTATE_90);
+                                           ImageTransform::ROTATE_180);
   // uint64_t seed = std::chrono::system_clock::now().time_since_epoch().count();
   uint64_t seed = 5;
   WFCCore wfc(overlapping_patterns.getAdjacencyData(), seed);
