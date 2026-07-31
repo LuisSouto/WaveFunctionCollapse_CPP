@@ -10,7 +10,7 @@
 #include <wfc_core.h>
 
 int main() {
-  std::string filename = "../Sprites/Flowers2.png";
+  std::string filename = "../Sprites/Flowers.png";
   SpriteHolder sprite = SpriteReader::loadFromPng(filename.c_str(), STBI_rgb);
   size_t N = 2;
   OverlappingPatterns overlapping_patterns(sprite, N, BoundaryCondition::NONE,
