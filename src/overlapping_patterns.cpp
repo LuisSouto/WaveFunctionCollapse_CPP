@@ -54,20 +54,26 @@ void OverlappingPatterns::computePatternHashes(const SpriteHolder &sprite, size_
   grid_pattern_hashes.clear();
   grid_pattern_hashes.resize(grid_size * transform_indexes.size());
   for (size_t t = 0; t < transform_indexes.size(); t++) {
-    TransformedIndex transform_func = all_transforms[transform_indexes[t]];
-    for (size_t y = 0; y < height; y++) {
-      for (size_t x = 0; x < width; x++) {
+    size_t transform_index = transform_indexes[t];
+    TransformedIndex transform_func = all_transforms[transform_index];
+    size_t transformed_width = transform_index % 2 == 0 ? width : height;
+    size_t transformed_height = transform_index % 2 == 0 ? height : width;
+    size_t sprite_width = transform_index % 2 == 0 ? sprite.getWidth() : sprite.getHeight();
+    size_t sprite_height = transform_index % 2 == 0 ? sprite.getHeight() : sprite.getWidth();
+    for (size_t y = 0; y < transformed_height; y++) {
+      for (size_t x = 0; x < transformed_width; x++) {
         pattern_hash_t pattern_hash = 0;
         for (size_t dy = 0; dy < N; dy++) {
           size_t adj_y = (y + dy) % sprite_height;
           for (size_t dx = 0; dx < N; dx++) {
             size_t adj_x = (x + dx) % sprite_width;
-            size_t transformed_index = transform_func(adj_x, adj_y, sprite_width, sprite_height);
+            size_t transformed_index =
+                transform_func(adj_x, adj_y, sprite.getWidth(), sprite.getHeight());
             const pixel_hash_t pixelHash = sprite.getPixelHash(transformed_index);
             pattern_hash = hash_combine(pattern_hash, pixelHash);
           }
         }
-        grid_pattern_hashes[x + y * width + grid_size * t] = pattern_hash;
+        grid_pattern_hashes[x + y * transformed_width + grid_size * t] = pattern_hash;
       }
     }
   }
@@ -95,10 +101,13 @@ void OverlappingPatterns::mapIdsToPixels(const SpriteHolder &sprite) {
   size_t pattern_id = 0;
   for (size_t t = 0; t < transform_indexes.size(); ++t) {
     TransformedIndex transform_func = all_transforms[transform_indexes[t]];
-    for (size_t y = 0; y < height; ++y) {
-      for (size_t x = 0; x < width; ++x) {
+    size_t transformed_width = transform_indexes[t] % 2 == 0 ? width : height;
+    size_t transformed_height = transform_indexes[t] % 2 == 0 ? height : width;
+    for (size_t y = 0; y < transformed_height; ++y) {
+      for (size_t x = 0; x < transformed_width; ++x) {
         size_t adj_x = x % sprite.getWidth();
-        pattern_hash_t pattern_hash = grid_pattern_hashes[x + y * width + grid_size * t];
+        pattern_hash_t pattern_hash =
+            grid_pattern_hashes[x + y * transformed_width + grid_size * t];
         if (hashes_to_ids[pattern_hash] == pattern_id) {
           size_t start_index = pattern_id * N * N * channels;
           for (size_t dy = 0; dy < N; ++dy) {
@@ -134,17 +143,19 @@ void OverlappingPatterns::findBoundaryPatterns() {
 
   for (size_t t = 0; t < transform_indexes.size(); ++t) {
     size_t transform_index = transform_indexes[t];
-    TransformedIndex transform_func = all_transforms[transform_index];
+    size_t transformed_width = transform_index % 2 == 0 ? width : height;
+    size_t transformed_height = transform_index % 2 == 0 ? height : width;
+
     // TOP and BOTTOM ROWS
-    std::vector<size_t> y_indexes = {0, height - 1};
+    std::vector<size_t> y_indexes = {0, transformed_height - 1};
     std::vector<size_t> start_indexes = {
         rotateDirectionClockwise(Directions::UP, transform_index) * num64_blocks,
         rotateDirectionClockwise(Directions::DOWN, transform_index) * num64_blocks};
     for (size_t i = 0; i < 2; ++i) {
       size_t y = y_indexes[i];
       size_t start_index = start_indexes[i];
-      for (size_t x = 0; x < width; x++) {
-        pattern_id_t pattern_id = grid_pattern_ids[x + y * width + grid_size * t];
+      for (size_t x = 0; x < transformed_width; ++x) {
+        pattern_id_t pattern_id = grid_pattern_ids[x + y * transformed_width + grid_size * t];
         size_t block_index = pattern_id / 64;
         size_t bit_index = pattern_id % 64;
         patterns_at_boundaries[start_index + block_index] |= (1ULL << bit_index);
@@ -152,14 +163,14 @@ void OverlappingPatterns::findBoundaryPatterns() {
     }
 
     // LEFT and RIGHT COLUMNs
-    std::vector<size_t> x_indexes = {0, width - 1};
+    std::vector<size_t> x_indexes = {0, transformed_width - 1};
     start_indexes = {rotateDirectionClockwise(Directions::LEFT, transform_index) * num64_blocks,
                      rotateDirectionClockwise(Directions::RIGHT, transform_index) * num64_blocks};
     for (size_t i = 0; i < 2; ++i) {
       size_t x = x_indexes[i];
       size_t start_index = start_indexes[i];
-      for (size_t y = 1; y < height - 1; ++y) {
-        pattern_id_t pattern_id = grid_pattern_ids[x + y * width + grid_size * t];
+      for (size_t y = 1; y < transformed_height - 1; ++y) {
+        pattern_id_t pattern_id = grid_pattern_ids[x + y * transformed_width + grid_size * t];
         size_t block_index = pattern_id / 64;
         size_t bit_index = pattern_id % 64;
         patterns_at_boundaries[start_index + block_index] |= (1ULL << bit_index);
@@ -211,22 +222,23 @@ AdjacencyData OverlappingPatterns::generateAdjacentData() const {
                                                                             NUM_DIRECTIONS_2D);
   for (size_t t = 0; t < transform_indexes.size(); ++t) {
     size_t transform_index = transform_indexes[t];
-    TransformedIndex transform_func = all_transforms[transform_index];
-    for (size_t y = 0; y < height; ++y) {
-      for (size_t x = 0; x < width; ++x) {
+    size_t transformed_width = transform_index % 2 == 0 ? width : height;
+    size_t transformed_height = transform_index % 2 == 0 ? height : width;
+    for (size_t y = 0; y < transformed_height; ++y) {
+      for (size_t x = 0; x < transformed_width; ++x) {
         if (x > 0) {
-          pattern_id_t left_id = grid_pattern_ids[x - 1 + y * width + grid_size * t];
-          pattern_id_t right_id = grid_pattern_ids[x + y * width + grid_size * t];
+          pattern_id_t left_id = grid_pattern_ids[x - 1 + y * transformed_width + grid_size * t];
+          pattern_id_t right_id = grid_pattern_ids[x + y * transformed_width + grid_size * t];
           ++adjacent_patterns[left_id * NUM_DIRECTIONS_2D +
                               rotateDirectionClockwise(Directions::RIGHT, transform_index)]
                              [right_id];
           ++adjacent_patterns[right_id * NUM_DIRECTIONS_2D +
                               rotateDirectionClockwise(Directions::LEFT, transform_index)][left_id];
         }
-        if (y < height - 1) {
+        if (y < transformed_height - 1) {
           // Image reads from top to bottom, so the pattern below is at y+1
-          size_t bottom_id = grid_pattern_ids[x + (y + 1) * width + grid_size * t];
-          size_t top_id = grid_pattern_ids[x + y * width + grid_size * t];
+          size_t bottom_id = grid_pattern_ids[x + (y + 1) * transformed_width + grid_size * t];
+          size_t top_id = grid_pattern_ids[x + y * transformed_width + grid_size * t];
           ++adjacent_patterns[bottom_id * NUM_DIRECTIONS_2D +
                               rotateDirectionClockwise(Directions::DOWN, transform_index)][top_id];
           ++adjacent_patterns[top_id * NUM_DIRECTIONS_2D +
