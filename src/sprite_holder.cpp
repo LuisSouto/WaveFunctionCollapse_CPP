@@ -1,4 +1,7 @@
 #include <sprite_holder.h>
+#include <sprite_transforms.h>
+#include <bit>
+#include <cstring>
 
 /* Create a unique hash for each pixel in the image.*/
 void SpriteHolder::computePixelHashes() {
@@ -12,4 +15,41 @@ void SpriteHolder::computePixelHashes() {
 		}
 		pixel_hashes[i] = pixel_hash;
 	}
+}
+
+SpriteHolder SpriteHolder::computeTransform(uint8_t transform_flag) const {
+	// Kinda superfluous but basically make sure at least the identity is present
+	if (transform_flag == 0) {
+		transform_flag = SpriteTransforms::IDENTITY;
+	}
+
+	if (transform_flag == SpriteTransforms::IDENTITY) {
+		return *this;
+	}
+
+	assert(std::popcount(transform_flag) == 1 &&
+			"Only one transformation can be applied at a time.");
+
+	assert(transform_flag < SpriteTransforms::ALL_TRANSFORMS && "Invalid transformation flag.");
+
+	size_t new_width = width;
+	size_t new_height = height;
+	if (transform_flag == SpriteTransforms::ROTATE_90 ||
+			transform_flag == SpriteTransforms::ROTATE_270) {
+		new_width = height;
+		new_height = width;
+	}
+
+	size_t transform_index = std::countr_zero(transform_flag);
+	std::vector<uint8_t> transformed_pixels(new_width * new_height * channels);
+	TransformFunction transform_func = transformFunctions[transform_index];
+	for (size_t y = 0; y < new_height; ++y) {
+		for (size_t x = 0; x < new_width; ++x) {
+			size_t pixel_index = y * new_width + x;
+			size_t original_index = transform_func(x, y, width, height);
+			std::memcpy(&transformed_pixels[pixel_index * channels],
+					&image_pixels[original_index * channels], channels);
+		}
+	}
+	return SpriteHolder(new_width, new_height, channels, transformed_pixels);
 }

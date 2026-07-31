@@ -26,6 +26,8 @@ public:
 		computePixelHashes();
 	};
 
+	SpriteHolder computeTransform(uint8_t transform_flag) const;
+
 	size_t getWidth() const { return width; }
 	size_t getHeight() const { return height; }
 	size_t getChannels() const { return channels; }
