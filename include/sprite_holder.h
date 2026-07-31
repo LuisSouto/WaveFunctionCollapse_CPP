@@ -44,9 +44,4 @@ public:
 		assert(x < width && y < height && "Pixel coordinates out of bounds");
 		return &image_pixels[(y * width + x) * channels];
 	};
-
-	const uint8_t *getPixelPointer(size_t cell_index) const {
-		assert(cell_index < num_pixels && "Pixel coordinates out of bounds");
-		return &image_pixels[cell_index * channels];
-	};
 };
