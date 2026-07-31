@@ -30,7 +30,7 @@ private:
 	size_t total_transforms;
 	void computeGridSize(const std::vector<SpriteHolder> &transformed_sprites,
 			BoundaryCondition boundary_condition);
-	void computePatternHashes(const std::vector<SpriteHolder> &transformed_sprites, size_t N,
+	void computePatternHashes(const std::vector<SpriteHolder> &transformed_sprites,
 			BoundaryCondition boundary_condition);
 	void mapHashesToIds();
 	void computeGridIds();

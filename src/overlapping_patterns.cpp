@@ -10,6 +10,9 @@
 
 OverlappingPatterns::OverlappingPatterns(const SpriteHolder &sprite, int N,
 		BoundaryCondition boundary_condition, uint8_t transform_flags) {
+	this->N = N;
+	channels = sprite.getChannels();
+
 	std::vector<SpriteHolder> transformed_sprites = {};
 	if (transform_flags == 0) {
 		transform_flags = SpriteTransforms::IDENTITY;
@@ -21,7 +24,7 @@ OverlappingPatterns::OverlappingPatterns(const SpriteHolder &sprite, int N,
 	}
 
 	computeGridSize(transformed_sprites, boundary_condition);
-	computePatternHashes(transformed_sprites, N, boundary_condition);
+	computePatternHashes(transformed_sprites, boundary_condition);
 	mapHashesToIds();
 	computeGridIds();
 	mapIdsToPixels(transformed_sprites);
@@ -48,10 +51,7 @@ void OverlappingPatterns::computeGridSize(const std::vector<SpriteHolder> &trans
 }
 
 void OverlappingPatterns::computePatternHashes(const std::vector<SpriteHolder> &transformed_sprites,
-		size_t N, BoundaryCondition boundary_condition) {
-	this->N = N;
-
-	channels = transformed_sprites[0].getChannels();
+		BoundaryCondition boundary_condition) {
 	widths.clear();
 	heights.clear();
 
