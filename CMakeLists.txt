@@ -28,10 +28,10 @@ target_include_directories(WaveFunctionCollapse
 
 target_compile_options(WaveFunctionCollapse PRIVATE
     -O3
+    -ffp-contract=fast
     -g
     -march=native
-    -fno-omit-frame-pointer
-    -fno-trapping-math
+    -mtune=native
     -Wall
     -Wextra
     -Wpedantic

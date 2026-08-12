@@ -1,7 +1,6 @@
 #pragma once
 
 #include <cstdint>
-#include <hash_set>
 
 /**
  * A 64-bit hash combiner based on the Boost hash_combine structure,

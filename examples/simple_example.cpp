@@ -28,7 +28,7 @@ int main() {
   std::uniform_int_distribution<size_t> dist(0, adj_output_width * adj_output_height - 1);
 
   // Generate images
-  for (size_t i = 0; i < 500; i++) {
+  for (size_t i = 0; i < 2000; i++) {
     collapsed_grid = wfc.solve(adj_output_width, adj_output_height, dist(rng), true,
                                CellSelectionStrategy::SCANLINE, {});
     std::vector<uint8_t> output_pixels = overlapping_patterns.convertIdsToPixels(
@@ -37,12 +37,9 @@ int main() {
     // convert the output_pixels to an image and save it as a PNG file
     int channels = sprite.getChannels();
     std::string output_filename = "../Results/output" + std::to_string(i) + ".png";
-    stbi_write_png(output_filename.c_str(), output_width, output_height, channels,
-                   output_pixels.data(), output_width * channels);
+    // stbi_write_png(output_filename.c_str(), output_width, output_height, channels,
+    //                output_pixels.data(), output_width * channels);
   }
 
-  // TODO: if a cell has tons of possible patterns, just assume it does not
-  // restrict its neighbours
-  // TODO: if neighbour_constraints is all 1's avoid intersection
   return 0;
 }
