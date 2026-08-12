@@ -113,6 +113,8 @@ void OverlappingPatterns::countPatterns() {
   }
 }
 
+// Note(Luis): these are the boundaries of the transformed sprite. I.e., after applying periodic
+// conditions, rotations, etc.
 void OverlappingPatterns::findBoundaryPatterns() {
   size_t num64_blocks = (num_patterns + 63) / 64;
   patterns_at_boundaries.clear();
@@ -161,11 +163,11 @@ OverlappingPatterns::convertIdsToPixels(std::span<const pattern_id_t> pattern_id
   size_t output_height = height + N - 1;
   size_t bytes_per_row = N * channels * sizeof(uint8_t);
   output_pixels.resize(output_width * output_height * channels);
-  for (size_t y = 0; y < height; y++) {
-    for (size_t x = 0; x < width; x++) {
+  for (size_t y = 0; y < height; ++y) {
+    for (size_t x = 0; x < width; ++x) {
       pattern_id_t pattern_id = pattern_ids[y * width + x];
       const uint8_t *pixel_data = &ids_to_pixels[pattern_id * channels * N * N];
-      for (size_t dy = 0; dy < N; dy++) {
+      for (size_t dy = 0; dy < N; ++dy) {
         size_t pixel_index = dy * N * channels;
         std::memcpy(&output_pixels[((y + dy) * output_width + x) * channels],
                     &pixel_data[pixel_index], bytes_per_row);

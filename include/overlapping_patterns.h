@@ -9,7 +9,6 @@
 #include <cstring>
 #include <vector>
 
-/*Looks for patterns in a sample image using overlapping.*/
 class OverlappingPatterns {
 private:
   std::vector<SpriteHolder> transformed_sprites;
@@ -24,6 +23,7 @@ private:
   size_t grid_size;
   size_t total_transforms;
   size_t num_patterns;
+
   void computeGridSize(const std::vector<SpriteHolder> &transformed_sprites,
                        BoundaryCondition boundary_condition);
   void computePatternIds(const std::vector<SpriteHolder> &transformed_sprites,
