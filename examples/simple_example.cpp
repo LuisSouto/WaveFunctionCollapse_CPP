@@ -18,8 +18,8 @@ int main() {
   uint64_t seed = std::chrono::system_clock::now().time_since_epoch().count();
   // uint64_t seed = 5;
   WFCCore wfc(overlapping_patterns.generateAdjacencyData(), seed);
-  size_t output_width = 32;
-  size_t output_height = 32;
+  size_t output_width = 128;
+  size_t output_height = 128;
   size_t adj_output_width = output_width - N + 1;
   size_t adj_output_height = output_height - N + 1;
   std::span<const pattern_id_t> collapsed_grid;
@@ -28,8 +28,8 @@ int main() {
   std::uniform_int_distribution<size_t> dist(0, adj_output_width * adj_output_height - 1);
 
   // Generate images
-  for (size_t i = 0; i < 50; i++) {
-    collapsed_grid = wfc.solve(adj_output_width, adj_output_height, dist(rng), false,
+  for (size_t i = 0; i < 500; i++) {
+    collapsed_grid = wfc.solve(adj_output_width, adj_output_height, dist(rng), true,
                                CellSelectionStrategy::SCANLINE, {});
     std::vector<uint8_t> output_pixels = overlapping_patterns.convertIdsToPixels(
         collapsed_grid, adj_output_width, adj_output_height);

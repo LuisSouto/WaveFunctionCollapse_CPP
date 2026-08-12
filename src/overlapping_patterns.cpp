@@ -28,7 +28,6 @@ OverlappingPatterns::OverlappingPatterns(const SpriteHolder &sprite, int N,
 
   computeGridSize(transformed_sprites, boundary_condition);
   computePatternIds(transformed_sprites, boundary_condition);
-  mapIdsToPixels(transformed_sprites);
   countPatterns();
   findBoundaryPatterns();
   generateAdjacencyData();
@@ -60,7 +59,7 @@ void OverlappingPatterns::computePatternIds(const std::vector<SpriteHolder> &tra
 
   ids_to_pixels.clear();
   grid_pattern_ids.clear();
-  grid_pattern_ids.reserve(grid_size * total_transforms);
+  grid_pattern_ids.resize(grid_size * total_transforms);
   std::unordered_map<pattern_hash_t, pattern_id_t> hashes_to_ids = {};
   for (size_t sprite_index = 0; sprite_index < total_transforms; ++sprite_index) {
     const SpriteHolder &sprite = transformed_sprites[sprite_index];
@@ -89,52 +88,21 @@ void OverlappingPatterns::computePatternIds(const std::vector<SpriteHolder> &tra
             pattern_hash = hash_combine(pattern_hash, pixelHash);
           }
         }
+        // Map identifier to its corresponding set of pixels
         if (!hashes_to_ids.contains(pattern_hash)) {
           hashes_to_ids[pattern_hash] = static_cast<pattern_id_t>(hashes_to_ids.size());
-          // for (size_t dy = 0; dy < N; ++dy) {
-          //   size_t adj_x = x % sprite.getWidth();
-          //   size_t adj_y = (y + dy) % sprite.getHeight();
-          //   const uint8_t *pixel_row = sprite.getPixelPointer(adj_x, adj_y);
-          //   ids_to_pixels.insert(ids_to_pixels.end(), pixel_row, pixel_row + N * channels);
-          // }
+          for (size_t dy = 0; dy < N; ++dy) {
+            size_t adj_x = x % sprite.getWidth();
+            size_t adj_y = (y + dy) % sprite.getHeight();
+            const uint8_t *pixel_row = sprite.getPixelPointer(adj_x, adj_y);
+            ids_to_pixels.insert(ids_to_pixels.end(), pixel_row, pixel_row + N * channels);
+          }
         }
         grid_pattern_ids[y * width + x + sprite_index * grid_size] = hashes_to_ids[pattern_hash];
       }
     }
   }
   num_patterns = hashes_to_ids.size();
-}
-
-void OverlappingPatterns::mapIdsToPixels(const std::vector<SpriteHolder> &transformed_sprites) {
-  size_t pattern_id = 0;
-  size_t pattern_size = N * N * channels;
-  ids_to_pixels.clear();
-  ids_to_pixels.resize(num_patterns * pattern_size);
-
-  for (size_t sprite_index = 0; sprite_index < transformed_sprites.size(); ++sprite_index) {
-    const SpriteHolder &sprite = transformed_sprites[sprite_index];
-    size_t width = widths[sprite_index];
-    size_t height = heights[sprite_index];
-    size_t bytes_per_row = N * channels * sizeof(uint8_t);
-
-    for (size_t y = 0; y < height; ++y) {
-      for (size_t x = 0; x < width; ++x) {
-        size_t adj_x = x % sprite.getWidth();
-        if (grid_pattern_ids[y * width + x + sprite_index * grid_size] == pattern_id) {
-          size_t start_index = pattern_id * pattern_size;
-          for (size_t dy = 0; dy < N; ++dy) {
-            size_t adj_y = (y + dy) % sprite.getHeight();
-            const uint8_t *pixel_row = sprite.getPixelPointer(adj_x, adj_y);
-            uint8_t *pixel_destination = &ids_to_pixels[start_index + dy * N * channels];
-            std::copy(pixel_row, pixel_row + N * channels, pixel_destination);
-            // std::memcpy(&ids_to_pixels[start_index + dy * N * channels], pixel_row,
-            // bytes_per_row);
-          }
-          ++pattern_id;
-        }
-      }
-    }
-  }
 }
 
 void OverlappingPatterns::countPatterns() {
