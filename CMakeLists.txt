@@ -11,8 +11,7 @@ set(CMAKE_LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin")
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib")
 
 # Option to build the shared library without examples
-option(WFC_BUILD_EXAMPLES "Build example applications" ON)
-option(WFC_BUILD_TESTS "Build unit tests" ON)
+option(WFC_BUILD_EXAMPLES "Build examples" ON)
 
 file(GLOB_RECURSE WFC_SOURCES CONFIGURE_DEPENDS
     "${CMAKE_CURRENT_SOURCE_DIR}/src/*.cpp"
@@ -43,12 +42,5 @@ target_link_options(WaveFunctionCollapse PRIVATE "-Wl,-z,now")
 if(WFC_BUILD_EXAMPLES)
     if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/examples/CMakeLists.txt")
         add_subdirectory(examples)
-    endif()
-endif()
-
-if(WFC_BUILD_TESTS)
-    enable_testing()
-    if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/tests/CMakeLists.txt")
-        add_subdirectory(tests)
     endif()
 endif()
