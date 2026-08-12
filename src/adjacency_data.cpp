@@ -35,7 +35,7 @@ AdjacencyData::AdjacencyData(
     for (size_t direction = 0; direction < NUM_DIRECTIONS_2D; ++direction) {
       size_t map_index = pattern_id * NUM_DIRECTIONS_2D + direction;
       for (const auto &[neighbour_pattern_id, frequency] : adjacent_patterns[map_index]) {
-        size_t block_index = neighbour_pattern_id >> 8;
+        size_t block_index = neighbour_pattern_id >> 6;
         size_t bit_index = neighbour_pattern_id & 63;
         neighbour_ids[map_index * num64_blocks + block_index] |= (1ULL << bit_index);
       }
