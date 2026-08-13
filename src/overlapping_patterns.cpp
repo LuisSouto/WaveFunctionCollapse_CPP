@@ -30,7 +30,6 @@ OverlappingPatterns::OverlappingPatterns(const SpriteHolder &sprite, int N,
   computePatternIds(transformed_sprites, boundary_condition);
   countPatterns();
   findBoundaryPatterns();
-  generateAdjacencyData();
 }
 
 void OverlappingPatterns::computeGridSize(const std::vector<SpriteHolder> &transformed_sprites,
@@ -145,7 +144,7 @@ void OverlappingPatterns::findBoundaryPatterns() {
     for (size_t i = 0; i < 2; ++i) {
       size_t x = x_indexes[i];
       size_t start_index = start_indexes[i];
-      for (size_t y = 1; y < height - 1; ++y) {
+      for (size_t y = 0; y < height; ++y) {
         pattern_id_t pattern_id = grid_pattern_ids[y * width + x + sprite_index * grid_size];
         size_t block_index = pattern_id / 64;
         size_t bit_index = pattern_id % 64;

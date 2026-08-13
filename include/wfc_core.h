@@ -38,12 +38,12 @@ private:
   uint64_t num_collapsed_cells = 0;
   uint64_t stack_counter = 0;
   uint32_t failed_snapshots = 0;
-  uint32_t max_failed_snapshots = 1000;
+  uint32_t max_failed_snapshots = 100;
   uint32_t current_snapshot = 0;
-  uint32_t max_failures_per_snapshot = 100;
+  uint32_t max_failures_per_snapshot = 20;
   uint32_t num_contradictions = 0;
-  uint32_t max_contradictions = 5000;
-  uint32_t max_restarts = 100;
+  uint32_t max_contradictions = 1;
+  uint32_t max_restarts = 500;
   uint32_t stack_size;
   int scan_direction = 1; // 1 for forward, -1 for backward
   CellSelectionStrategy selection_strategy;
@@ -91,7 +91,7 @@ private:
 
   void pushCellToUndoStack(size_t cell_index);
 
-  bool generateCollapsedGrid(size_t start_index);
+  bool generateCollapsedGrid(int start_index);
 
 public:
   WFCCore(const AdjacencyData &adjacent_data) : adjacent_data(adjacent_data) {
@@ -128,10 +128,11 @@ public:
     return {collapsed_patterns.data(), collapsed_patterns.size()};
   }
 
-  void startSolver(size_t output_width, size_t output_height, bool force_boundary_patterns,
+  void startSolver(size_t grid_width, size_t grid_height, bool force_boundary_patterns,
+                   CellSelectionStrategy selection_strategy,
                    const std::unordered_map<size_t, pattern_id_t> &fixed_cells);
 
-  std::span<const pattern_id_t> solve(size_t output_width, size_t output_height, size_t start_index,
+  std::span<const pattern_id_t> solve(size_t grid_width, size_t grid_height, int start_index,
                                       bool force_boundary_patterns,
                                       CellSelectionStrategy cell_selection_strategy,
                                       const std::unordered_map<size_t, pattern_id_t> &fixed_cells);

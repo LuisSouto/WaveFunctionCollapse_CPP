@@ -2,9 +2,11 @@
 #include <algorithm>
 #include <bit>
 #include <cassert>
+#include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <directions.h>
+#include <limits>
 #include <math.h>
 #include <random>
 #include <span>
@@ -14,16 +16,14 @@
 #include <wfc_typedefs.h>
 
 std::span<const pattern_id_t>
-WFCCore::solve(size_t grid_width, size_t grid_height, size_t start_index,
-               bool force_boundary_patterns, CellSelectionStrategy cell_selection_strategy,
+WFCCore::solve(size_t grid_width, size_t grid_height, int start_index, bool force_boundary_patterns,
+               CellSelectionStrategy selection_strategy,
                const std::unordered_map<size_t, pattern_id_t> &fixed_cells) {
-  selection_strategy = cell_selection_strategy;
-  startSolver(grid_width, grid_height, force_boundary_patterns, fixed_cells);
-
+  startSolver(grid_width, grid_height, force_boundary_patterns, selection_strategy, fixed_cells);
   uint32_t num_restarts = 0;
   bool success = generateCollapsedGrid(start_index);
   while (!success && num_restarts < max_restarts) {
-    startSolver(grid_width, grid_height, force_boundary_patterns, fixed_cells);
+    startSolver(grid_width, grid_height, force_boundary_patterns, selection_strategy, fixed_cells);
     success = generateCollapsedGrid(start_index);
     ++num_restarts;
   }
@@ -93,9 +93,11 @@ std::vector<uint8_t> WFCCore::getValidCellsForPattern(pattern_id_t pattern_id, s
 }
 
 void WFCCore::startSolver(size_t grid_width, size_t grid_height, bool force_boundary_patterns,
+                          CellSelectionStrategy selection_strategy,
                           const std::unordered_map<size_t, pattern_id_t> &fixed_cells) {
   this->grid_width = grid_width;
   this->grid_height = grid_height;
+  this->selection_strategy = selection_strategy;
   total_cells = grid_width * grid_height;
   num64_blocks = adjacent_data.getNum64Blocks();
   scan_direction = 1;
@@ -128,8 +130,12 @@ void WFCCore::collapsedFixedCells(const std::unordered_map<size_t, pattern_id_t>
   }
 }
 
-bool WFCCore::generateCollapsedGrid(size_t start_index) {
-  this->start_index = start_index;
+bool WFCCore::generateCollapsedGrid(int start_index) {
+  if (start_index >= 0) {
+    this->start_index = start_index;
+  } else {
+    this->start_index = std::floor(dist(rng) * total_cells);
+  }
 
   size_t current_cell_index;
   uint8_t no_contradictions;
@@ -138,7 +144,7 @@ bool WFCCore::generateCollapsedGrid(size_t start_index) {
   if (selection_strategy == CellSelectionStrategy::ENTROPY) {
     current_cell_index = chooseNextCellEntropy();
   } else {
-    current_cell_index = start_index;
+    current_cell_index = this->start_index;
   }
   saveSnapshot(current_cell_index);
 
@@ -210,12 +216,24 @@ void WFCCore::initializeGrid(size_t grid_width, size_t grid_height) {
 }
 
 void WFCCore::initializeTempBuffers() {
+  temp_buffers.cell_pattern_ids.clear();
   temp_buffers.cell_pattern_ids.reserve(num64_blocks * 64);
+
+  temp_buffers.pattern_frequencies.clear();
   temp_buffers.pattern_frequencies.reserve(num64_blocks * 64);
+
+  temp_buffers.constraints_from_cell.clear();
   temp_buffers.constraints_from_cell.resize(num64_blocks * NUM_DIRECTIONS_2D, 0);
+
+  temp_buffers.cell_update_versions.clear();
   temp_buffers.cell_update_versions.resize(total_cells, 0);
+
+  temp_buffers.next_cell_wave.clear();
   temp_buffers.next_cell_wave.resize(total_cells);
+
+  temp_buffers.current_cell_wave.clear();
   temp_buffers.current_cell_wave.resize(total_cells);
+
   temp_buffers.current_version = 0;
 }
 
@@ -261,14 +279,19 @@ void WFCCore::initializeUndoStack() {
   }
   undo_stack.clear();
   undo_stack.reserve((num64_blocks + 3) * total_cells / 100); // 1% of the whole grid
+
   stack_checkpoints.clear();
   stack_checkpoints.reserve(max_failed_snapshots);
+
   num_collapsed_cells_at_snapshot.clear();
-  num_collapsed_cells_at_snapshot.reserve(1000);
+  num_collapsed_cells_at_snapshot.reserve(max_failed_snapshots);
+
   stack_starting_cell_indexes.clear();
-  stack_starting_cell_indexes.reserve(1000);
+  stack_starting_cell_indexes.reserve(max_failed_snapshots);
+
   failures_at_snapshots.clear();
-  failures_at_snapshots.reserve(1000);
+  failures_at_snapshots.reserve(max_failed_snapshots);
+
   stack_counter = 0;
   current_snapshot = 0;
 }
@@ -276,6 +299,7 @@ void WFCCore::initializeUndoStack() {
 /* Bake the neighbour indexes for each cell to avoid recalculating them
  * during propagation */
 void WFCCore::bakeNeighbourIndexes() {
+  neighbour_indexes.clear();
   neighbour_indexes.resize(total_cells * NUM_DIRECTIONS_2D);
   for (size_t cell_index = 0; cell_index < total_cells; ++cell_index) {
     size_t x = cell_index % grid_width;
@@ -322,7 +346,7 @@ void WFCCore::applyBoundaryConditions() {
     size_t x = x_indexes[i];
     std::span<const uint64_t> boundary_patterns =
         adjacent_data.getPatternsAtBoundaries(directions[i]);
-    for (size_t y = 1; y < grid_height - 1; ++y) {
+    for (size_t y = 0; y < grid_height; ++y) {
       for (size_t j = 0; j < num64_blocks; ++j) {
         grid[(y * grid_width + x) * num64_blocks + j] &= boundary_patterns[j];
       }
@@ -357,9 +381,10 @@ size_t WFCCore::chooseNextCellEntropy() {
       size_t cell_index = base_cell_index + std::countr_zero(collapsed_block);
       collapsed_block &= (collapsed_block - 1);
       double entropy = calculateEntropyAtCell(cell_index);
+      double noise = 2e-6 * dist(rng) - 1e-6;
 
-      if (entropy < min_entropy) {
-        min_entropy = entropy;
+      if (entropy + noise < min_entropy) {
+        min_entropy = entropy + noise;
         next_cell_index = cell_index;
       }
     }
