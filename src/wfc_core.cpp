@@ -17,19 +17,19 @@ std::span<const pattern_id_t>
 WFCCore::solve(size_t grid_width, size_t grid_height, size_t start_index,
                bool force_boundary_patterns, CellSelectionStrategy cell_selection_strategy,
                const std::unordered_map<size_t, pattern_id_t> &fixed_cells) {
+  selection_strategy = cell_selection_strategy;
   startSolver(grid_width, grid_height, force_boundary_patterns, fixed_cells);
 
   uint32_t num_restarts = 0;
-  bool success = generateCollapsedGrid(start_index, cell_selection_strategy);
+  bool success = generateCollapsedGrid(start_index);
   while (!success && num_restarts < max_restarts) {
     startSolver(grid_width, grid_height, force_boundary_patterns, fixed_cells);
-    success = generateCollapsedGrid(start_index, cell_selection_strategy);
+    success = generateCollapsedGrid(start_index);
     ++num_restarts;
   }
   if (!success) {
     return {};
   }
-
   return {collapsed_patterns.data(), collapsed_patterns.size()};
 }
 
@@ -107,13 +107,17 @@ void WFCCore::startSolver(size_t grid_width, size_t grid_height, bool force_boun
   num_collapsed_cells = 0;
   num_contradictions = 0;
 
-  // Boundary conditions
-  initializeEntropyData();
+  if (selection_strategy == CellSelectionStrategy::ENTROPY) {
+    initializeEntropyData();
+  }
+
   if (force_boundary_patterns) {
     applyBoundaryConditions();
   }
 
-  initializeEntropyData();
+  if (selection_strategy == CellSelectionStrategy::ENTROPY) {
+    initializeEntropyData();
+  }
   initializeUndoStack();
   collapsedFixedCells(fixed_cells);
 }
@@ -124,15 +128,14 @@ void WFCCore::collapsedFixedCells(const std::unordered_map<size_t, pattern_id_t>
   }
 }
 
-bool WFCCore::generateCollapsedGrid(size_t start_index,
-                                    CellSelectionStrategy cell_selection_strategy) {
+bool WFCCore::generateCollapsedGrid(size_t start_index) {
   this->start_index = start_index;
 
   size_t current_cell_index;
   uint8_t no_contradictions;
   uint32_t iterations_per_snapshot = 1;
   uint32_t snapshot_iterator = 0;
-  if (cell_selection_strategy == CellSelectionStrategy::ENTROPY) {
+  if (selection_strategy == CellSelectionStrategy::ENTROPY) {
     current_cell_index = chooseNextCellEntropy();
   } else {
     current_cell_index = start_index;
@@ -157,7 +160,7 @@ bool WFCCore::generateCollapsedGrid(size_t start_index,
       continue;
     }
     ++snapshot_iterator;
-    if (cell_selection_strategy == CellSelectionStrategy::ENTROPY) {
+    if (selection_strategy == CellSelectionStrategy::ENTROPY) {
       current_cell_index = chooseNextCellEntropy();
     } else {
       current_cell_index = chooseNextCellScanline(current_cell_index);
@@ -251,6 +254,11 @@ double WFCCore::calculateEntropyAtCell(size_t cell_index) {
 }
 
 void WFCCore::initializeUndoStack() {
+  if (selection_strategy == CellSelectionStrategy::ENTROPY) {
+    stack_size = num64_blocks + 3;
+  } else {
+    stack_size = num64_blocks + 1;
+  }
   undo_stack.clear();
   undo_stack.reserve((num64_blocks + 3) * total_cells / 100); // 1% of the whole grid
   stack_checkpoints.clear();
@@ -500,14 +508,16 @@ WFCCore::updateConstraintsOfNeighbour(std::span<const uint64_t> cell_constraints
         already_pushed_to_stack = true;
       }
       grid[start_index + i] = new_block;
-      uint64_t removed_patterns = old_block & ~new_block;
-      while (removed_patterns != 0) {
-        pattern_id_t removed_pattern_id = (i << 6) + std::countr_zero(removed_patterns);
-        entropy_data.weight_times_log_weights[neighbour_index] -=
-            adjacent_data.getPatternFreqTimesLogFreq(removed_pattern_id);
-        entropy_data.weight_sums[neighbour_index] -=
-            adjacent_data.getPatternFrequency(removed_pattern_id);
-        removed_patterns &= (removed_patterns - 1);
+      if (selection_strategy == CellSelectionStrategy::ENTROPY) {
+        uint64_t removed_patterns = old_block & ~new_block;
+        while (removed_patterns != 0) {
+          pattern_id_t removed_pattern_id = (i << 6) + std::countr_zero(removed_patterns);
+          entropy_data.weight_times_log_weights[neighbour_index] -=
+              adjacent_data.getPatternFreqTimesLogFreq(removed_pattern_id);
+          entropy_data.weight_sums[neighbour_index] -=
+              adjacent_data.getPatternFrequency(removed_pattern_id);
+          removed_patterns &= (removed_patterns - 1);
+        }
       }
     }
   }
@@ -559,21 +569,22 @@ void WFCCore::saveSnapshot(size_t current_cell_index) {
 size_t WFCCore::restoreSnapshot() {
   stack_counter = stack_checkpoints.back();
   size_t cell_index = 0;
-  size_t stack_size = num64_blocks + 3;
   size_t num_updates = undo_stack.size() / stack_size - stack_counter;
   for (size_t i = num_updates; i > 0; --i) {
-    size_t start = stack_size * (i - 1 + stack_counter);
-    cell_index = static_cast<size_t>(undo_stack[start]);
+    size_t stack_index = stack_size * (i - 1 + stack_counter);
+    cell_index = static_cast<size_t>(undo_stack[stack_index++]);
     if (cell_index == total_cells - 1) {
       scan_direction = 1; // Reset scan direction to forward
     }
 
-    entropy_data.weight_sums[cell_index] = std::bit_cast<double>(undo_stack[start + 1]);
-    entropy_data.weight_times_log_weights[cell_index] =
-        std::bit_cast<double>(undo_stack[start + 2]);
+    if (selection_strategy == CellSelectionStrategy::ENTROPY) {
+      entropy_data.weight_sums[cell_index] = std::bit_cast<double>(undo_stack[stack_index++]);
+      entropy_data.weight_times_log_weights[cell_index] =
+          std::bit_cast<double>(undo_stack[stack_index++]);
+    }
 
     for (size_t j = 0; j < num64_blocks; ++j) {
-      grid[cell_index * num64_blocks + j] = undo_stack[start + 3 + j];
+      grid[cell_index * num64_blocks + j] = undo_stack[stack_index];
     }
     is_cell_collapsed[cell_index] = false;
     collapsed_mask[cell_index >> 6] |= (1ULL << (cell_index & 63));
@@ -581,8 +592,8 @@ size_t WFCCore::restoreSnapshot() {
   // Remove the patterns that were collapsed in the snapshot
   cell_index = stack_starting_cell_indexes.back();
   pattern_id_t collapsed_pattern_id = collapsed_patterns[cell_index];
-  size_t target_block = collapsed_pattern_id / 64;
-  int target_bit = collapsed_pattern_id % 64;
+  size_t target_block = collapsed_pattern_id >> 6;
+  int target_bit = collapsed_pattern_id & 63;
   grid[cell_index * num64_blocks + target_block] &= ~(1ULL << target_bit);
 
   undo_stack.resize(stack_counter * stack_size);
@@ -619,8 +630,10 @@ void WFCCore::pushCellToUndoStack(size_t cell_idx) {
   // Order of data starting from end:
   // [Index][WeightSum][WLogW][Block0][Block1]...
   undo_stack.push_back(static_cast<uint64_t>(cell_idx));
-  undo_stack.push_back(std::bit_cast<uint64_t>(entropy_data.weight_sums[cell_idx]));
-  undo_stack.push_back(std::bit_cast<uint64_t>(entropy_data.weight_times_log_weights[cell_idx]));
+  if (selection_strategy == CellSelectionStrategy::ENTROPY) {
+    undo_stack.push_back(std::bit_cast<uint64_t>(entropy_data.weight_sums[cell_idx]));
+    undo_stack.push_back(std::bit_cast<uint64_t>(entropy_data.weight_times_log_weights[cell_idx]));
+  }
 
   size_t start = cell_idx * num64_blocks;
   for (size_t i = 0; i < num64_blocks; ++i) {

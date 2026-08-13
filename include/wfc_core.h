@@ -44,7 +44,9 @@ private:
   uint32_t num_contradictions = 0;
   uint32_t max_contradictions = 5000;
   uint32_t max_restarts = 100;
+  uint32_t stack_size;
   int scan_direction = 1; // 1 for forward, -1 for backward
+  CellSelectionStrategy selection_strategy;
 
   void initializeGrid(size_t output_width, size_t output_height);
 
@@ -89,7 +91,7 @@ private:
 
   void pushCellToUndoStack(size_t cell_index);
 
-  bool generateCollapsedGrid(size_t start_index, CellSelectionStrategy cell_selection_strategy);
+  bool generateCollapsedGrid(size_t start_index);
 
 public:
   WFCCore(const AdjacencyData &adjacent_data) : adjacent_data(adjacent_data) {
