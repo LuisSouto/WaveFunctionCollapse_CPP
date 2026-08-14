@@ -1,6 +1,6 @@
 #include "overlapping_patterns.h"
 #include "directions.h"
-#include "hash_boost.h"
+#include "hash_combine.h"
 #include "sprite_holder.h"
 #include "sprite_transforms.h"
 #include "wfc_globals.h"
