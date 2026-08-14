@@ -60,3 +60,8 @@ The mixer algorithm used in the `hash_combine` function was taken from [Jon Maig
 
 ## Sprites
 The example sprites were made by me in Aseprite. `twisted_paths.png` took inspiration from the `Flowers.png` sprite available in Maxim Gumin's repo.
+
+## License
+Copyright (c) 2026 Luis Antonio Souto Arias
+
+MIT License, see License.md for further details.
