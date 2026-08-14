@@ -14,13 +14,13 @@
 
 int main() {
   // First we load the sprite as pixel data
-  std::string filename = "../Sprites/Flowers2.png";
+  std::string filename = "./assets/twisted_paths.png";
   SpriteHolder sprite = SpriteReader::loadFromPng(filename.c_str(), STBI_rgb_alpha);
 
   // Extract the patterns present in the image
   size_t N = 3; // Pattern length (typically 2 or 3 works best)
   OverlappingPatterns overlapping_patterns(sprite, N, BoundaryCondition::NONE,
-                                           SpriteTransforms::IDENTITY);
+                                           SpriteTransforms::ALL_TRANSFORMS);
 
   // Initialize WFC, you can use a fixed seed for reproducible results
   uint64_t seed = std::chrono::system_clock::now().time_since_epoch().count();
@@ -36,7 +36,7 @@ int main() {
   // Generate images
   size_t num_images = 1;
   int start_index = -1; // negative index means the algorithm will randomly choose a start point
-  bool force_boundary_patterns = true; // to enforce boundaries (e.g. walls) around the image
+  bool force_boundary_patterns = false; // if true, enforce boundaries (e.g. walls) around the image
   std::unordered_map<size_t, pattern_id_t> fixed_cells = {};
   for (size_t i = 0; i < num_images; ++i) {
     // Call WFC to generate the output image. The algorithm returns a grid where each element
