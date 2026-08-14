@@ -159,7 +159,6 @@ bool WFCCore::generateCollapsedGrid(int start_index) {
     if (!no_contradictions) {
       snapshot_iterator = 0;
       current_cell_index = restoreSnapshot();
-      // propagateConstraints(current_cell_index);
       if (num_contradictions >= max_contradictions) {
         return false;
       }

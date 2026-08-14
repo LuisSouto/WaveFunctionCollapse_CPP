@@ -42,7 +42,7 @@ private:
   uint32_t current_snapshot = 0;
   uint32_t max_failures_per_snapshot = 20;
   uint32_t num_contradictions = 0;
-  uint32_t max_contradictions = 1;
+  uint32_t max_contradictions = 20;
   uint32_t max_restarts = 500;
   uint32_t stack_size;
   int scan_direction = 1; // 1 for forward, -1 for backward

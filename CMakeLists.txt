@@ -7,18 +7,19 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON) # needed for clangd
 
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin")
-set(CMAKE_LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin")
+set(CMAKE_LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib")
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib")
 
 # Option to build the shared library without examples
 option(WFC_BUILD_EXAMPLES "Build examples" ON)
 
-file(GLOB_RECURSE WFC_SOURCES CONFIGURE_DEPENDS
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/*.cpp"
-)
-
 add_library(WaveFunctionCollapse SHARED
-    ${WFC_SOURCES}
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/adjacency_data.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/overlapping_patterns.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/sprite_holder.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/sprite_reader.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/stb_image.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/wfc_core.cpp"
 )
 
 target_include_directories(WaveFunctionCollapse
@@ -36,8 +37,6 @@ target_compile_options(WaveFunctionCollapse PRIVATE
     -Wextra
     -Wpedantic
 )
-
-target_link_options(WaveFunctionCollapse PRIVATE "-Wl,-z,now")
 
 if(WFC_BUILD_EXAMPLES)
     if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/examples/CMakeLists.txt")
