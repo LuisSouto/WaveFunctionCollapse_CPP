@@ -7,6 +7,7 @@
 #include "wfc_typedefs.h"
 #include <chrono>
 #include <cstddef>
+#include <filesystem>
 #include <iostream>
 #include <ostream>
 #include <string>
@@ -16,6 +17,8 @@ int main() {
   // First we load the sprite as pixel data
   std::string filename = "./assets/twisted_paths.png";
   SpriteHolder sprite = SpriteReader::loadFromPng(filename.c_str(), STBI_rgb_alpha);
+  std::string output_dir = "./results";
+  std::filesystem::create_directory(output_dir);
 
   // Extract the patterns present in the image
   size_t N = 3; // Pattern length (typically 2 or 3 works best)
@@ -56,7 +59,7 @@ int main() {
 
     // Save image, stbi supports other formats appart from .png so adjust to your use case
     int channels = sprite.getChannels();
-    std::string output_filename = "../Results/output" + std::to_string(i) + ".png";
+    std::string output_filename = output_dir + "/output" + std::to_string(i) + ".png";
     stbi_write_png(output_filename.c_str(), output_width, output_height, channels,
                    output_pixels.data(), output_width * channels);
   }
