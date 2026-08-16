@@ -608,7 +608,7 @@ size_t WFCCore::restoreSnapshot() {
     }
 
     for (size_t j = 0; j < num64_blocks; ++j) {
-      grid[cell_index * num64_blocks + j] = undo_stack[stack_index];
+      grid[cell_index * num64_blocks + j] = undo_stack[stack_index + j];
     }
     is_cell_collapsed[cell_index] = false;
     collapsed_mask[cell_index >> 6] |= (1ULL << (cell_index & 63));
