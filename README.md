@@ -28,8 +28,8 @@ There is an example provided showcasing usage. Some settings that you may want t
 ## How to build
 
 There is a CMake file provided that uses GCC to compile the library. As long as you have these dependencies installed (in particular C++20) you should be able to build the library as follows:
-2. Open a terminal and cd to a location where you want to clone the repo.
-3. Run the following commands:
+1. Open a terminal and cd to a location where you want to clone the repo.
+2. Run the following commands:
 ```
 git clone https://github.com/LuisSouto/WaveFunctionCollapse_CPP.git
 cd WaveFunctionCollapse_CPP
