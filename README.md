@@ -51,7 +51,7 @@ There is a backtracking implementation for when the algorithm reaches a contradi
 
 ## Extension for Godot
 
-I made a Godot extension using this library in a separate repo, with a few examples for level generation. If you are also a Godot user, please check it out!
+I made a Godot wrapper of this WFC implementation, with a few examples for level generation. If you are also a Godot user, please check it out [here](https://github.com/LuisSouto/WaveFunctionCollapse_Godot)!
 
 ## Third-party libraries
 Aside from standard C++ libraries, the *stb library* was used to read and write images. In particular, `stb_image.h` and `stb_image_write.h`, which are dual-licensed under the Public Domain and MIT licenses. The code was taken as is from the [stb repo](https://github.com/nothings/stb).
