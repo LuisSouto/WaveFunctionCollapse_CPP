@@ -683,7 +683,6 @@ std::vector<uint8_t> WFCCore::currentSnapshot(OverlappingPatterns overlapping_pa
       auto cell_patterns = readPatternsAtCell(cell_index);
       size_t num_patterns = cell_patterns.size();
 
-      size_t num_colors = num_patterns + pattern_length - 1;
       size_t max_dx = (x == grid_width - 1) ? pattern_length : 0;
       size_t max_dy = (y == grid_height - 1) ? pattern_length : 0;
       for (size_t n = 0; n < num_patterns; ++n) {
@@ -693,7 +692,7 @@ std::vector<uint8_t> WFCCore::currentSnapshot(OverlappingPatterns overlapping_pa
           for (size_t dx = 0; dx < max_dx; ++dx) {
             for (size_t c = 0; c < channels; ++c) {
               snapshot[(cell_index + dx + dy * output_width) * channels + c] +=
-                  cell_colors[(dx + dy * num_colors) * channels + c];
+                  cell_colors[(dx + dy * pattern_length) * channels + c];
             }
           }
         }
