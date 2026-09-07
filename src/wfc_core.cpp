@@ -689,7 +689,7 @@ std::vector<uint8_t> WFCCore::currentSnapshot(OverlappingPatterns overlapping_pa
       size_t max_dx = (x == grid_width - 1) ? pattern_length : 1;
       size_t max_dy = (y == grid_height - 1) ? pattern_length : 1;
       for (size_t n = 0; n < num_patterns; ++n) {
-        uint8_t *cell_colors = &input_pixel_patterns[n * pattern_size];
+        uint8_t *cell_colors = &input_pixel_patterns[cell_patterns[n] * pattern_size];
         for (size_t dy = 0; dy < max_dy; ++dy) {
           for (size_t dx = 0; dx < max_dx; ++dx) {
             for (size_t c = 0; c < channels; ++c) {
