@@ -1,5 +1,6 @@
 #pragma once
 
+#include "overlapping_patterns.h"
 #include <adjacency_data.h>
 #include <cstddef>
 #include <cstdint>
@@ -138,4 +139,6 @@ public:
                                       const std::unordered_map<size_t, pattern_id_t> &fixed_cells);
 
   void undoLastCollapse();
+
+  std::vector<uint8_t> currentSnapshot(OverlappingPatterns overlapping_patterns);
 };

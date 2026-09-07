@@ -1,3 +1,4 @@
+#include "overlapping_patterns.h"
 #include "wfc_settings.h"
 #include <algorithm>
 #include <bit>
@@ -664,4 +665,30 @@ void WFCCore::pushCellToUndoStack(size_t cell_idx) {
     undo_stack.push_back(grid[start + i]);
   }
   ++stack_counter;
+}
+
+/* Returns the most recent snapshot of the WFC image as a pixel grid, where the color of a cell with
+ * more than one possible pattern is the average of its possible colors. This is particularly useful
+ * to make animations.*/
+std::vector<uint8_t> WFCCore::currentSnapshot(OverlappingPatterns overlapping_patterns) {
+  std::vector<uint8_t> snapshot;
+  snapshot.resize(total_cells, 0.0);
+  size_t channels = overlapping_patterns.getChannels();
+  for (size_t cell_index = 0; cell_index < total_cells; ++cell_index) {
+    auto cell_patterns = readPatternsAtCell(cell_index);
+    size_t num_patterns = cell_patterns.size();
+    std::vector<uint8_t> cell_colors =
+        overlapping_patterns.convertIdsToPixels(cell_patterns, num_patterns, 1);
+
+    for (size_t i = 0; i < num_patterns; ++i) {
+      for (size_t c = 0; c < channels; ++c) {
+        snapshot[cell_index * channels + c] += cell_colors[i * channels + c];
+      }
+    }
+    for (size_t c = 0; c < channels; ++c) {
+      snapshot[cell_index * channels + c] /= num_patterns;
+    }
+  }
+
+  return snapshot;
 }

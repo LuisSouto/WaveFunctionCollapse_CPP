@@ -44,4 +44,6 @@ public:
                                           size_t height) const;
 
   std::vector<uint8_t> getInputPixelPatterns() const;
+
+  size_t getChannels() const {return channels;}
 };
