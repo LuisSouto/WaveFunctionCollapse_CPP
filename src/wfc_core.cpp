@@ -675,8 +675,10 @@ std::vector<uint8_t> WFCCore::currentSnapshot(OverlappingPatterns overlapping_pa
   size_t pattern_length = overlapping_patterns.getPatternLength();
   size_t output_width = grid_width + pattern_length - 1;
   size_t output_height = grid_height + pattern_length - 1;
+  size_t pattern_size = pattern_length * pattern_length * channels;
   std::vector<uint8_t> snapshot;
   snapshot.resize(output_width * output_height * channels, 0.0);
+  std::vector<uint8_t> input_pixel_patterns = overlapping_patterns.getInputPixelPatterns();
   for (size_t y = 0; y < grid_height; ++y) {
     for (size_t x = 0; x < grid_width; ++x) {
       size_t cell_index = x + y * grid_width;
@@ -687,8 +689,7 @@ std::vector<uint8_t> WFCCore::currentSnapshot(OverlappingPatterns overlapping_pa
       size_t max_dx = (x == grid_width - 1) ? pattern_length : 1;
       size_t max_dy = (y == grid_height - 1) ? pattern_length : 1;
       for (size_t n = 0; n < num_patterns; ++n) {
-        std::vector<uint8_t> cell_colors =
-            overlapping_patterns.convertIdsToPixels({&cell_patterns[n], 1}, 1, 1);
+        uint8_t *cell_colors = &input_pixel_patterns[n * pattern_size];
         for (size_t dy = 0; dy < max_dy; ++dy) {
           for (size_t dx = 0; dx < max_dx; ++dx) {
             for (size_t c = 0; c < channels; ++c) {
