@@ -45,5 +45,7 @@ public:
 
   std::vector<uint8_t> getInputPixelPatterns() const;
 
-  size_t getChannels() const {return channels;}
+  size_t getChannels() const { return channels; }
+
+  size_t getPatternLength() const { return N; }
 };
