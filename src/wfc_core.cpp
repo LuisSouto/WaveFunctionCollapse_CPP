@@ -671,9 +671,9 @@ void WFCCore::pushCellToUndoStack(size_t cell_idx) {
  * more than one possible pattern is the average of its possible colors. This is particularly useful
  * to make animations.*/
 std::vector<uint8_t> WFCCore::currentSnapshot(OverlappingPatterns overlapping_patterns) {
-  std::vector<uint8_t> snapshot;
-  snapshot.resize(total_cells, 0.0);
   size_t channels = overlapping_patterns.getChannels();
+  std::vector<uint8_t> snapshot;
+  snapshot.resize(total_cells * channels, 0.0);
   for (size_t cell_index = 0; cell_index < total_cells; ++cell_index) {
     auto cell_patterns = readPatternsAtCell(cell_index);
     size_t num_patterns = cell_patterns.size();
