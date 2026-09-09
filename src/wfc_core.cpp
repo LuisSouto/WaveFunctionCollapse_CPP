@@ -18,14 +18,19 @@
 
 std::span<const pattern_id_t> WFCCore::solve(size_t grid_width, size_t grid_height, int start_index,
 		bool force_boundary_patterns, CellSelectionStrategy selection_strategy,
-		const std::unordered_map<size_t, pattern_id_t> &fixed_cells) {
-	startSolver(grid_width, grid_height, force_boundary_patterns, selection_strategy, fixed_cells);
+		const std::unordered_map<size_t, pattern_id_t> &fixed_cells, int num_cells_to_solve) {
+	if (num_collapsed_cells == 0 || num_collapsed_cells == total_cells) {
+		startSolver(
+				grid_width, grid_height, force_boundary_patterns, selection_strategy, fixed_cells);
+	}
+	size_t num_cells_to_collapse = (num_cells_to_solve < 0) ? total_cells : num_cells_to_solve;
+	num_cells_to_collapse = std::min(num_cells_to_collapse, total_cells - num_collapsed_cells);
 	uint32_t num_restarts = 0;
-	bool success = generateCollapsedGrid(start_index);
+	bool success = generateCollapsedGrid(start_index, num_cells_to_collapse);
 	while (!success && num_restarts < max_restarts) {
 		startSolver(
 				grid_width, grid_height, force_boundary_patterns, selection_strategy, fixed_cells);
-		success = generateCollapsedGrid(start_index);
+		success = generateCollapsedGrid(start_index, num_cells_to_collapse);
 		++num_restarts;
 	}
 	if (!success) {
@@ -131,7 +136,7 @@ void WFCCore::collapsedFixedCells(const std::unordered_map<size_t, pattern_id_t>
 	}
 }
 
-bool WFCCore::generateCollapsedGrid(int start_index) {
+bool WFCCore::generateCollapsedGrid(int start_index, size_t num_cells_to_solve) {
 	if (start_index >= 0) {
 		this->start_index = start_index;
 	} else {
@@ -149,8 +154,10 @@ bool WFCCore::generateCollapsedGrid(int start_index) {
 	}
 	saveSnapshot(current_cell_index);
 
+	size_t prev_num_collapsed_cells = num_collapsed_cells;
+
 	// Collapse cells until the whole grid is collapsed
-	while (num_collapsed_cells < total_cells) {
+	while (num_collapsed_cells - prev_num_collapsed_cells < num_cells_to_solve) {
 		if (snapshot_iterator >= iterations_per_snapshot) {
 			snapshot_iterator = 0;
 			saveSnapshot(current_cell_index);
